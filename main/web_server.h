@@ -3,7 +3,27 @@
 
 #include <esp_http_server.h>
 
-httpd_handle_t start_webserver(void);
-esp_err_t stop_webserver(httpd_handle_t server);
+class WebServer {
+public:
+    static WebServer& getInstance() {
+        static WebServer instance;
+        return instance;
+    }
+
+    WebServer(const WebServer&) = delete;
+    WebServer& operator=(const WebServer&) = delete;
+
+    void start();
+    void stop();
+
+private:
+    WebServer() : _server(NULL) {}
+    httpd_handle_t _server;
+
+    static esp_err_t rootGetHandler(httpd_req_t *req);
+    static esp_err_t apiStatusHandler(httpd_req_t *req);
+    static esp_err_t apiControlHandler(httpd_req_t *req);
+    static esp_err_t apiSseHandler(httpd_req_t *req);
+};
 
 #endif // WEB_SERVER_H

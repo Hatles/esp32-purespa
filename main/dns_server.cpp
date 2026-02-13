@@ -1,12 +1,10 @@
+#include "dns_server.h"
 #include <string.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include "esp_log.h"
-#include "dns_server.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
-static const char *TAG = "dns_server";
+static const char *TAG = "DNSServer";
 
 #define DNS_PORT 53
 
@@ -19,12 +17,24 @@ typedef struct __attribute__((packed)) {
     uint16_t ar_count;
 } dns_header_t;
 
-typedef struct __attribute__((packed)) {
-    uint16_t type;
-    uint16_t class;
-} dns_question_t;
+void DNSServer::start() {
+    if (_taskHandle == nullptr) {
+        xTaskCreate(taskWrapper, "dns_server", 4096, this, 5, &_taskHandle);
+    }
+}
 
-static void dns_server_task(void *pvParameters) {
+void DNSServer::stop() {
+    if (_taskHandle != nullptr) {
+        vTaskDelete(_taskHandle);
+        _taskHandle = nullptr;
+    }
+}
+
+void DNSServer::taskWrapper(void* param) {
+    static_cast<DNSServer*>(param)->run();
+}
+
+void DNSServer::run() {
     uint8_t rx_buffer[512];
     struct sockaddr_in server_addr;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -34,6 +44,7 @@ static void dns_server_task(void *pvParameters) {
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
         ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
+        _taskHandle = nullptr;
         vTaskDelete(NULL);
         return;
     }
@@ -41,6 +52,7 @@ static void dns_server_task(void *pvParameters) {
     if (bind(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
         close(sock);
+        _taskHandle = nullptr;
         vTaskDelete(NULL);
         return;
     }
@@ -60,35 +72,23 @@ static void dns_server_task(void *pvParameters) {
         if (len < sizeof(dns_header_t)) continue;
 
         dns_header_t *header = (dns_header_t *)rx_buffer;
-        header->flags = htons(0x8180); // Standard query response, no error
+        header->flags = htons(0x8180);
         header->an_count = header->qd_count;
 
         uint8_t *ptr = rx_buffer + len;
         
-        // Append Answer section
-        // For simplicity, we just respond with 192.168.4.1 for every question
-        // We need to mirror the question first
-        // But the question is already in rx_buffer, we just append the answer after it
-        
-        // Answer section:
-        // Name: 0xc00c (Pointer to the name in the question section)
         *ptr++ = 0xc0;
         *ptr++ = 0x0c;
-        // Type: A (1)
         *ptr++ = 0x00;
         *ptr++ = 0x01;
-        // Class: IN (1)
         *ptr++ = 0x00;
         *ptr++ = 0x01;
-        // TTL: 60s
         *ptr++ = 0x00;
         *ptr++ = 0x00;
         *ptr++ = 0x00;
         *ptr++ = 0x3c;
-        // Data length: 4
         *ptr++ = 0x00;
         *ptr++ = 0x04;
-        // IP Address: 192.168.4.1
         *ptr++ = 192;
         *ptr++ = 168;
         *ptr++ = 4;
@@ -98,18 +98,6 @@ static void dns_server_task(void *pvParameters) {
     }
 
     close(sock);
+    _taskHandle = nullptr;
     vTaskDelete(NULL);
-}
-
-static TaskHandle_t dns_task_handle = NULL;
-
-void dns_server_start(void) {
-    xTaskCreate(dns_server_task, "dns_server", 4096, NULL, 5, &dns_task_handle);
-}
-
-void dns_server_stop(void) {
-    if (dns_task_handle) {
-        vTaskDelete(dns_task_handle);
-        dns_task_handle = NULL;
-    }
 }

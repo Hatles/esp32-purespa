@@ -7,41 +7,96 @@
         body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 10px auto; max-width: 400px; }
         h1 { color: #333; }
-        #api-status, #sse-time { font-weight: bold; color: #007bff; }
+        .status-val { font-weight: bold; color: #007bff; }
+        .btn-group { display: flex; justify-content: space-around; flex-wrap: wrap; }
+        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; color: white; }
+        .btn-on { background-color: #28a745; }
+        .btn-off { background-color: #dc3545; }
+        .temp-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; }
+        input[type=number] { padding: 8px; width: 60px; text-align: center; }
     </style>
 </head>
 <body>
-    <h1>ESP32 PureSpa</h1>
+    <h1>ESP32 PureSpa Controller</h1>
+    
     <div class='card'>
-        <h3>API Status</h3>
-        <p id='api-status'>Loading...</p>
+        <h3>Status</h3>
+        <p>Online: <span id='online' class='status-val'>...</span></p>
+        <p>Actual Temp: <span id='act-temp' class='status-val'>--</span> &deg;C</p>
+        <p>Target Temp: <span id='set-temp' class='status-val'>--</span> &deg;C</p>
     </div>
-    <div class='card'>
-        <h3>Real-time Time (SSE)</h3>
-        <p id='sse-time'>Waiting for updates...</p>
-    </div>
-    <script>
-        // Fetch API Test
-        fetch('/api/test')
-          .then(response => response.json())
-          .then(data => {
-            document.getElementById('api-status').innerText = data.message;
-          })
-          .catch(err => {
-            document.getElementById('api-status').innerText = 'Error loading API';
-            console.error(err);
-          });
 
-        // Subscribe to SSE
+    <div class='card'>
+        <h3>Controls</h3>
+        <div class="btn-group">
+            <button id="btn-power" onclick="toggle('power')">Power</button>
+            <button id="btn-filter" onclick="toggle('filter')">Filter</button>
+            <button id="btn-heater" onclick="toggle('heater')">Heater</button>
+            <button id="btn-bubble" onclick="toggle('bubble')">Bubble</button>
+        </div>
+        
+        <div class="temp-ctrl">
+            <label>Set Temp:</label>
+            <input type="number" id="target-temp-input" min="20" max="40">
+            <button class="btn-on" onclick="setTemp()">Set</button>
+        </div>
+    </div>
+
+    <script>
+        let state = {};
+
+        function updateUI(data) {
+            state = data;
+            document.getElementById('online').innerText = data.online ? 'Yes' : 'No';
+            document.getElementById('act-temp').innerText = data.act_temp != -99 ? data.act_temp : '--';
+            document.getElementById('set-temp').innerText = data.set_temp != -99 ? data.set_temp : '--';
+            
+            updateButton('btn-power', data.power);
+            updateButton('btn-filter', data.filter);
+            updateButton('btn-heater', data.heater);
+            updateButton('btn-bubble', data.bubble);
+            
+            if (data.set_temp != -99 && document.getElementById('target-temp-input').value === "") {
+                document.getElementById('target-temp-input').value = data.set_temp;
+            }
+        }
+
+        function updateButton(id, isActive) {
+            const btn = document.getElementById(id);
+            if (isActive) {
+                btn.className = 'btn-on';
+                btn.innerText = id.split('-')[1].charAt(0).toUpperCase() + id.split('-')[1].slice(1) + ' ON';
+            } else {
+                btn.className = 'btn-off';
+                btn.innerText = id.split('-')[1].charAt(0).toUpperCase() + id.split('-')[1].slice(1) + ' OFF';
+            }
+            btn.onclick = () => toggle(id.split('-')[1], !isActive);
+        }
+
+        function toggle(cmd, value) {
+            fetch('/api/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cmd: cmd, value: value })
+            });
+        }
+
+        function setTemp() {
+            const val = parseInt(document.getElementById('target-temp-input').value);
+            fetch('/api/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cmd: 'temp', value: val })
+            });
+        }
+
         const eventSource = new EventSource('/api/sse');
         eventSource.onmessage = function(event) {
-          const data = JSON.parse(event.data);
-          const date = new Date(data.time * 1000);
-          document.getElementById('sse-time').innerText = date.toLocaleTimeString();
+            const data = JSON.parse(event.data);
+            updateUI(data);
         };
         eventSource.onerror = function(err) {
-          console.error('EventSource failed:', err);
-          document.getElementById('sse-time').innerText = 'Connection lost';
+            console.error('SSE Error:', err);
         };
     </script>
 </body>
