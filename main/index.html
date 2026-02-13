@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 PureSpa</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 10px auto; max-width: 400px; }
+        h1 { color: #333; }
+        #api-status, #sse-time { font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+    <h1>ESP32 PureSpa</h1>
+    <div class='card'>
+        <h3>API Status</h3>
+        <p id='api-status'>Loading...</p>
+    </div>
+    <div class='card'>
+        <h3>Real-time Time (SSE)</h3>
+        <p id='sse-time'>Waiting for updates...</p>
+    </div>
+    <script>
+        // Fetch API Test
+        fetch('/api/test')
+          .then(response => response.json())
+          .then(data => {
+            document.getElementById('api-status').innerText = data.message;
+          })
+          .catch(err => {
+            document.getElementById('api-status').innerText = 'Error loading API';
+            console.error(err);
+          });
+
+        // Subscribe to SSE
+        const eventSource = new EventSource('/api/sse');
+        eventSource.onmessage = function(event) {
+          const data = JSON.parse(event.data);
+          const date = new Date(data.time * 1000);
+          document.getElementById('sse-time').innerText = date.toLocaleTimeString();
+        };
+        eventSource.onerror = function(err) {
+          console.error('EventSource failed:', err);
+          document.getElementById('sse-time').innerText = 'Connection lost';
+        };
+    </script>
+</body>
+</html>
