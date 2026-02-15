@@ -183,9 +183,38 @@ private:
     unsigned int toggleTempDown     = 0;
   };
 
+  struct DebugState
+  {
+      uint32_t isrCount = 0;
+      
+      uint32_t validFrameCount = 0;
+      uint32_t invalidFrameCount = 0;
+
+      uint32_t endEnabled = 0;
+      uint32_t endNotEnabled = 0;
+      
+      uint32_t cueFrameCount = 0;
+      uint32_t ledFrameCount = 0;
+      uint32_t digitFrameCount = 0;
+      uint32_t buttonFrameCount = 0;
+      uint32_t unsupportedFrameCount = 0;
+
+      uint32_t dataHighCount = 0;
+      uint32_t dataLowCount = 0;
+      
+      volatile uint16_t lastValidFrame = 0;
+      volatile uint16_t lastValidFrameDiff = 0;
+      volatile uint16_t lastInvalidFrame = 0;
+      volatile uint8_t lastInvalidFrameBits = 0;
+
+      volatile uint16_t lastFrames[64];
+      volatile uint8_t lastFramesIndex = 0;
+  };
+
 private:
   // ISR and ISR helper
   static IRAM_ATTR void clockRisingISR(void* arg);
+  static IRAM_ATTR void latchRisingISR(void* arg);
   static IRAM_ATTR void decodeDisplay();
   static IRAM_ATTR void decodeLED();
   static IRAM_ATTR void decodeButton();
@@ -196,6 +225,7 @@ private:
   static volatile State state;
   static volatile IsrState isrState;
   static volatile Buttons buttons;
+  static volatile DebugState debugState;
 
 private:
   int convertDisplayToCelsius(uint32_t value) const;

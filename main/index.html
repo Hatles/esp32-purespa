@@ -9,11 +9,14 @@
         h1 { color: #333; }
         .status-val { font-weight: bold; color: #007bff; }
         .btn-group { display: flex; justify-content: space-around; flex-wrap: wrap; }
-        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; color: white; }
+        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; color: white; transition: opacity 0.3s; }
+        button:disabled { background-color: #ccc !important; cursor: not-allowed; opacity: 0.6; }
         .btn-on { background-color: #28a745; }
         .btn-off { background-color: #dc3545; }
         .temp-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; }
         input[type=number] { padding: 8px; width: 60px; text-align: center; }
+        input:disabled { background-color: #eee; }
+        .config-box { font-size: 0.8em; color: #666; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -21,6 +24,7 @@
     
     <div class='card'>
         <h3>Status</h3>
+        <p>Update Method: <span id='update-method' class='status-val'>...</span></p>
         <p>Online: <span id='online' class='status-val'>...</span></p>
         <p>Actual Temp: <span id='act-temp' class='status-val'>--</span> &deg;C</p>
         <p>Target Temp: <span id='set-temp' class='status-val'>--</span> &deg;C</p>
@@ -38,41 +42,64 @@
         <div class="temp-ctrl">
             <label>Set Temp:</label>
             <input type="number" id="target-temp-input" min="20" max="40">
-            <button class="btn-on" onclick="setTemp()">Set</button>
+            <button id="btn-set-temp" class="btn-on" onclick="setTemp()">Set</button>
         </div>
     </div>
 
-    <script>
-        let state = {};
+    <div class="config-box">
+        <label><input type="checkbox" id="use-sse" onchange="location.reload()"> Use SSE (instead of Polling)</label>
+    </div>
 
+    <script>
+        // CONFIGURATION
+        const useSSE = localStorage.getItem('useSSE') === 'true';
+        document.getElementById('use-sse').checked = useSSE;
+        document.getElementById('update-method').innerText = useSSE ? 'SSE' : 'Polling (2s)';
+
+        // UI Logic
         function updateUI(data) {
-            state = data;
-            document.getElementById('online').innerText = data.online ? 'Yes' : 'No';
-            document.getElementById('act-temp').innerText = data.act_temp != -99 ? data.act_temp : '--';
-            document.getElementById('set-temp').innerText = data.set_temp != -99 ? data.set_temp : '--';
+            const isOnline = data.online;
+            const isPowerOn = isOnline ? data.power : false;
+
+            document.getElementById('online').innerText = isOnline ? 'Yes' : 'No';
+            document.getElementById('act-temp').innerText = (isOnline && data.act_temp != -99) ? data.act_temp : '--';
+            document.getElementById('set-temp').innerText = (isPowerOn && data.set_temp != -99) ? data.set_temp : '--';
             
-            updateButton('btn-power', data.power);
-            updateButton('btn-filter', data.filter);
-            updateButton('btn-heater', data.heater);
-            updateButton('btn-bubble', data.bubble);
+            // Power button is only enabled if the controller is ONLINE
+            updateButton('btn-power', isPowerOn, !isOnline);
             
-            if (data.set_temp != -99 && document.getElementById('target-temp-input').value === "") {
+            // Other buttons are only enabled if Online AND Power is ON
+            updateButton('btn-filter', isPowerOn ? data.filter : false, !isPowerOn);
+            updateButton('btn-heater', isPowerOn ? data.heater : false, !isPowerOn);
+            updateButton('btn-bubble', isPowerOn ? data.bubble : false, !isPowerOn);
+            
+            // Temperature controls
+            document.getElementById('target-temp-input').disabled = !isPowerOn;
+            document.getElementById('btn-set-temp').disabled = !isPowerOn;
+            
+            if (isPowerOn && data.set_temp != -99 && document.getElementById('target-temp-input').value === "") {
                 document.getElementById('target-temp-input').value = data.set_temp;
             }
         }
 
-        function updateButton(id, isActive) {
+        function updateButton(id, isActive, forceDisabled) {
             const btn = document.getElementById(id);
+            const cmd = id.split('-')[1];
+            const label = cmd.charAt(0).toUpperCase() + cmd.slice(1);
+
             if (isActive) {
                 btn.className = 'btn-on';
-                btn.innerText = id.split('-')[1].charAt(0).toUpperCase() + id.split('-')[1].slice(1) + ' ON';
+                btn.innerText = label + ' ON';
             } else {
                 btn.className = 'btn-off';
-                btn.innerText = id.split('-')[1].charAt(0).toUpperCase() + id.split('-')[1].slice(1) + ' OFF';
+                btn.innerText = label + ' OFF';
             }
-            btn.onclick = () => toggle(id.split('-')[1], !isActive);
+            
+            btn.disabled = forceDisabled;
+            btn.onclick = forceDisabled ? null : () => toggle(cmd, !isActive);
         }
 
+        // Control Logic
         function toggle(cmd, value) {
             fetch('/api/control', {
                 method: 'POST',
@@ -83,21 +110,37 @@
 
         function setTemp() {
             const val = parseInt(document.getElementById('target-temp-input').value);
-            fetch('/api/control', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cmd: 'temp', value: val })
-            });
+            toggle('temp', val);
         }
 
-        const eventSource = new EventSource('/api/sse');
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            updateUI(data);
-        };
-        eventSource.onerror = function(err) {
-            console.error('SSE Error:', err);
-        };
+        // Update Logic (SSE or Polling)
+        if (useSSE) {
+            const eventSource = new EventSource('//' + location.hostname + ':81/api/sse');
+            eventSource.onmessage = function(event) {
+                updateUI(JSON.parse(event.data));
+            };
+            eventSource.onerror = function(err) {
+                console.error('SSE Error:', err);
+            };
+        } else {
+            function pollStatus() {
+                fetch('/api/status')
+                    .then(r => r.json())
+                    .then(data => updateUI(data))
+                    .catch(e => {
+                        console.error('Polling error:', e);
+                        // If fetching fails, show offline
+                        updateUI({ online: false, power: false });
+                    })
+                    .finally(() => setTimeout(pollStatus, 2000));
+            }
+            pollStatus();
+        }
+
+        // Settings toggle
+        document.getElementById('use-sse').addEventListener('change', (e) => {
+            localStorage.setItem('useSSE', e.target.checked);
+        });
     </script>
 </body>
 </html>

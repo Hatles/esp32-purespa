@@ -18,6 +18,10 @@ void WiFiManager::init() {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
+    // Reduce TX power slightly to prevent current spikes/brownouts
+    // 80 units = 20dBm (max). Setting to 50 (approx 12-13dBm) helps a lot.
+    esp_wifi_set_max_tx_power(50);
+
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
                                                         &WiFiManager::eventHandler,
@@ -89,7 +93,7 @@ void WiFiManager::startSTA() {
 }
 
 void WiFiManager::startAP() {
-    ESP_LOGI(TAG, "Starting AP mode");
+    ESP_LOGI(TAG, "Starting AP mode. Connect to 'ESP32-PureSpa-Config' and visit http://192.168.4.1");
     wifi_config_t wifi_config = {};
     strcpy((char*)wifi_config.ap.ssid, "ESP32-PureSpa-Config");
     wifi_config.ap.ssid_len = strlen("ESP32-PureSpa-Config");

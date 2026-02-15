@@ -166,6 +166,7 @@ void PureSpaIO::setup(LANG language)
 {
   this->language = language;
 
+  // Configure CLOCK as Interrupt Input (Rising Edge)
   gpio_config_t io_conf = {};
   io_conf.intr_type = GPIO_INTR_POSEDGE;
   io_conf.pin_bit_mask = (1ULL << PIN::CLOCK);
@@ -174,12 +175,19 @@ void PureSpaIO::setup(LANG language)
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   gpio_config(&io_conf);
 
+  // Configure LATCH as Interrupt Input (Falling Edge)
+  io_conf.intr_type = GPIO_INTR_POSEDGE;
+  io_conf.pin_bit_mask = (1ULL << PIN::LATCH);
+  gpio_config(&io_conf);
+
+  // Configure DATA as Input
   io_conf.intr_type = GPIO_INTR_DISABLE;
-  io_conf.pin_bit_mask = (1ULL << PIN::DATA) | (1ULL << PIN::LATCH);
+  io_conf.pin_bit_mask = (1ULL << PIN::DATA);
   gpio_config(&io_conf);
 
   gpio_install_isr_service(0);
   gpio_isr_handler_add(PIN::CLOCK, PureSpaIO::clockRisingISR, this);
+  gpio_isr_handler_add(PIN::LATCH, PureSpaIO::latchRisingISR, this);
 }
 
 PureSpaIO::MODEL PureSpaIO::getModel() const
@@ -558,40 +566,35 @@ int PureSpaIO::convertDisplayToCelsius(uint32_t value) const
 
 IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
 {
-  bool data = !gpio_get_level(PIN::DATA);
-  bool enabled = !gpio_get_level(PIN::LATCH);
+  isrState.frameValue = (isrState.frameValue << 1) + !gpio_get_level(PIN::DATA);
+  isrState.receivedBits++;
+}
 
-  if (enabled || isrState.receivedBits == (FRAME::BITS - 1))
+IRAM_ATTR void PureSpaIO::latchRisingISR(void* arg)
+{
+  if (isrState.receivedBits == FRAME::BITS)
   {
-    isrState.frameValue = (isrState.frameValue << 1) + data;
-    isrState.receivedBits = isrState.receivedBits + 1;
-
-    if (isrState.receivedBits == FRAME::BITS)
-    {
-      state.frameCounter = state.frameCounter + 1;
-      if (isrState.frameValue == FRAME_TYPE::CUE)
-      {
-      }
-      else if (isrState.frameValue & FRAME_TYPE::DIGIT)
-      {
-        decodeDisplay();
-      }
-      else if (isrState.frameValue & FRAME_TYPE::LED)
-      {
-        decodeLED();
-      }
-      else if (isrState.frameValue & FRAME_TYPE::BUTTON)
-      {
-        decodeButton();
-      }
-
-      isrState.receivedBits = 0;
+    state.frameCounter++;
+    
+    if (isrState.frameValue == FRAME_TYPE::CUE) {
     }
+    else if (isrState.frameValue & FRAME_TYPE::DIGIT) {
+        decodeDisplay();
+    }
+    else if (isrState.frameValue & FRAME_TYPE::LED) {
+        decodeLED();
+    }
+    else if (isrState.frameValue & FRAME_TYPE::BUTTON) {
+        decodeButton();
+    }
+
+    isrState.receivedBits = 0;
   }
   else
   {
+    state.frameCounter++;
+    state.frameDropped++;
     isrState.receivedBits = 0;
-    state.frameCounter = state.frameCounter + 1;
   }
 }
 
@@ -869,6 +872,7 @@ IRAM_ATTR void PureSpaIO::decodeButton()
   if (isrState.reply)
   {
     ets_delay_us(1);
+    gpio_set_level(PIN::DATA, 0); // Explicitly pull low
     gpio_set_direction(PIN::DATA, GPIO_MODE_OUTPUT);
     ets_delay_us(3);
     gpio_set_direction(PIN::DATA, GPIO_MODE_INPUT);

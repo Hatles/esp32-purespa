@@ -17,8 +17,9 @@ public:
     void stop();
 
 private:
-    WebServer() : _server(NULL) {}
-    httpd_handle_t _server;
+    WebServer() : _mainServer(NULL), _sseServer(NULL) {}
+    httpd_handle_t _mainServer;
+    httpd_handle_t _sseServer;
 
     static esp_err_t rootGetHandler(httpd_req_t *req);
     static esp_err_t apiStatusHandler(httpd_req_t *req);
