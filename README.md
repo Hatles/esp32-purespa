@@ -1,6 +1,11 @@
 # ESP32 PureSpa Controller
 
-This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp8266-intexsbh20) project to the **ESP32** platform. It allows for WiFi remote control of Intex PureSpa whirlpools.
+This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp8266-intexsbh20) project to the **ESP32** platform.
+
+**The primary goal** is to upgrade standard Intex PureSpa whirlpools with modern **Smart Home capabilities**. By integrating an ESP32, you gain **full remote control** over WiFi and **custom scheduling** features that are missing from the original control panel. This allows you to:
+- Heat the water during off-peak hours to save energy.
+- Ensure filtration cycles run automatically even if you are away.
+- Turn on the bubbles from your phone before you step outside.
 
 **⚠️ WARNING: USE AT YOUR OWN RISK. Opening your spa controller and connecting custom electronics voids your warranty and involves mains voltage risks.**
 
@@ -50,13 +55,78 @@ This project simplifies the original hardware design by leveraging readily avail
 
 ### Components Used:
 - **ESP32-WROOM-32:** A standard ESP32 development board.
-- **Bi-Directional Logic Level Converter (TTL):** Instead of building a voltage divider with resistors, I used a pre-made module to safely interface the Spa's 5V logic with the ESP32's 3.3V logic. This is cleaner and less error-prone.
-  - **Connections:**
-    - Spa 5V -> HV (High Voltage) on Converter
-    - Spa GND -> GND on Converter
-    - ESP32 3.3V -> LV (Low Voltage) on Converter
-    - ESP32 GND -> GND on Converter
-    - Signal Lines (Data, Clock, Latch) pass through the converter channels (HVx <-> LVx).
+- **Bi-Directional Logic Level Converter (TTL):** Instead of building a voltage divider with resistors, I used a pre-made module to safely interface the Spa's 5V logic with the ESP32's 3.3V logic.
+- **Capacitor (optional but recommended):** A small electrolytic capacitor (e.g., 100µF or 470µF) between the +5V and GND lines near the ESP32 can help stabilize the power supply if powering directly from the Spa.
+
+### Power Options
+1. **Direct Power (Recommended for clean setup):** Connect the Spa's +5V line to the **VIN / 5V** pin of the ESP32 board. This powers the ESP32 directly from the Spa.
+2. **External USB:** You can also power the ESP32 via its micro-USB/USB-C port using a separate phone charger or power bank if you prefer not to tap the Spa's power line for the heavy load.
+
+### Wiring Diagram
+
+```mermaid
+graph LR
+    subgraph Intex_Spa
+    VCC_5V[+5V Supply]
+    GND_SPA[GND]
+    DATA_5V[Data Signal 5V]
+    CLOCK_5V[Clock Signal 5V]
+    LATCH_5V[Latch Signal 5V]
+    end
+
+    subgraph Logic_Converter
+    HV[HV High Voltage]
+    GND_HV[GND HV Side]
+    HV1[HV1]
+    HV2[HV2]
+    HV3[HV3]
+    LV[LV Low Voltage]
+    GND_LV[GND LV Side]
+    LV1[LV1]
+    LV2[LV2]
+    LV3[LV3]
+    end
+
+    subgraph ESP32
+    VIN[VIN / 5V Pin]
+    VCC_3V3[3.3V Pin]
+    GND_ESP[GND Pin]
+    GPIO_DATA[GPIO Data]
+    GPIO_CLOCK[GPIO Clock]
+    GPIO_LATCH[GPIO Latch]
+    end
+    
+    CAP[Capacitor 100µF]
+
+    %% Power Connections (Option 1: Direct Power)
+    VCC_5V -- Powering ESP --> VIN
+    VCC_5V -- Ref for HV --> HV
+    
+    %% Capacitor for stability
+    VIN --- CAP
+    GND_ESP --- CAP
+
+    %% Ground Common
+    GND_SPA --> GND_HV
+    GND_ESP --> GND_LV
+    GND_SPA -. Common Ground .- GND_ESP
+    
+    %% Converter Low Side Power
+    VCC_3V3 --> LV
+
+    %% Signal Connections (Bi-directional)
+    DATA_5V <--> HV1
+    CLOCK_5V <--> HV2
+    LATCH_5V <--> HV3
+
+    HV1 <--> LV1
+    HV2 <--> LV2
+    HV3 <--> LV3
+
+    LV1 <--> GPIO_DATA
+    LV2 <--> GPIO_CLOCK
+    LV3 <--> GPIO_LATCH
+```
 
 ### Connectors & Plug
 To connect to the Intex control panel without cutting wires, you can 3D print the connectors. I successfully used the models from the original project:
@@ -85,6 +155,24 @@ SSE was implemented and tested but ultimately abandoned. The ESP32's HTTP server
 
 ### Future: WebSockets
 The ideal solution for real-time, bi-directional communication without the blocking issues of SSE or the overhead of polling is **WebSockets**. This is planned for a future update.
+
+## Future Improvements
+
+### ESPHome Component
+The current codebase is a standalone C++ project. A great future addition would be to wrap the `PureSpaIO` logic into a custom **ESPHome component**. This would allow users to:
+- Easily integrate with **Home Assistant** without writing any C++ code.
+- Benefit from ESPHome's native OTA, API, and WiFi management.
+- Define automations directly in YAML.
+
+### MQTT Support
+While the original project was MQTT-centric, this port currently lacks it. Re-implementing MQTT would allow for universal integration with any home automation hub (OpenHAB, Domoticz, etc.).
+
+### Power Saving (Deep Sleep)
+Currently, the ESP32 runs continuously. A future update could implement **Deep Sleep** capabilities to save power when the Spa is idle (Power OFF) for several minutes.
+
+The ESP32 could automatically wake up based on:
+1.  **Scheduled Events:** Using the RTC timer to wake up exactly when a scheduled task needs to execute.
+2.  **External Wake-up:** Potentially waking up on incoming network activity (though this requires Light Sleep rather than Deep Sleep to maintain WiFi association) or periodic checks.
 
 ## Credits
 
