@@ -35,6 +35,8 @@ A hosted web server provides a dashboard to:
 - Control all functions remotely.
 - View connection status and debug info.
 
+![Web UI](assets/purespa_webui.png)
+
 ### 2. Built-in Scheduling
 The ESP32 stores a schedule in its non-volatile memory (NVS), allowing automation without an external hub:
 - **Recurring Events:** Schedule actions for specific days of the week (e.g., "Every Mon, Wed at 18:00").

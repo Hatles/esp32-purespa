@@ -5,8 +5,24 @@
     <meta name='viewport' content='width=device-width, initial-scale=1'>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 10px auto; max-width: 400px; }
-        h1 { color: #333; }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            flex: 1 1 300px; /* Grow, shrink, base width */
+            max-width: 400px;
+            margin: 0;
+        }
+        h1 { color: #333; width: 100%; }
         .status-val { font-weight: bold; color: #007bff; }
         .btn-group { display: flex; justify-content: space-around; flex-wrap: wrap; }
         button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; color: white; transition: opacity 0.3s; }
@@ -16,79 +32,81 @@
         .temp-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; }
         input[type=number] { padding: 8px; width: 60px; text-align: center; }
         input:disabled { background-color: #eee; }
-        .config-box { font-size: 0.8em; color: #666; margin-top: 20px; }
+        .config-box { font-size: 0.8em; color: #666; margin-top: 20px; width: 100%; }
     </style>
 </head>
 <body>
     <h1>ESP32 PureSpa Controller</h1>
     
-    <div class='card'>
-        <h3>Status</h3>
-        <!--<p>Update Method: <span id='update-method' class='status-val'>...</span></p>-->
-        <p>Current Time: <span id='current-time' class='status-val'>...</span></p>
-        <p>Online: <span id='online' class='status-val'>...</span></p>
-        <p>Actual Temp: <span id='act-temp' class='status-val'>--</span> &deg;C</p>
-        <p>Target Temp: <span id='set-temp' class='status-val'>--</span> &deg;C</p>
-    </div>
+    <div class="container">
+        <div class='card'>
+            <h3>Status</h3>
+            <!--<p>Update Method: <span id='update-method' class='status-val'>...</span></p>-->
+            <p>Current Time: <span id='current-time' class='status-val'>...</span></p>
+            <p>Online: <span id='online' class='status-val'>...</span></p>
+            <p>Actual Temp: <span id='act-temp' class='status-val'>--</span> &deg;C</p>
+            <p>Target Temp: <span id='set-temp' class='status-val'>--</span> &deg;C</p>
+        </div>
 
-    <div class='card'>
-        <h3>Schedule</h3>
-        <div id="schedule-list" style="text-align: left; margin-bottom: 15px;">
-            Loading...
+        <div class='card'>
+            <h3>Schedule</h3>
+            <div id="schedule-list" style="text-align: left; margin-bottom: 15px;">
+                Loading...
+            </div>
+            <hr>
+            <h4>Add Event</h4>
+            <div style="text-align: left; font-size: 0.9em;">
+                <div style="margin-bottom: 5px;">
+                    Type: 
+                    <select id="sched-type" onchange="toggleSchedType()">
+                        <option value="recurring">Recurring</option>
+                        <option value="once">Once</option>
+                    </select>
+                </div>
+                <div id="div-recurring">
+                    Days: 
+                    <label><input type="checkbox" class="sched-dow" value="1">M</label>
+                    <label><input type="checkbox" class="sched-dow" value="2">T</label>
+                    <label><input type="checkbox" class="sched-dow" value="3">W</label>
+                    <label><input type="checkbox" class="sched-dow" value="4">T</label>
+                    <label><input type="checkbox" class="sched-dow" value="5">F</label>
+                    <label><input type="checkbox" class="sched-dow" value="6">S</label>
+                    <label><input type="checkbox" class="sched-dow" value="0">S</label>
+                </div>
+                <div id="div-once" style="display: none;">
+                    Date: <input type="date" id="sched-date">
+                </div>
+                <div style="margin: 5px 0;">
+                    Time: <input type="time" id="sched-time">
+                </div>
+                <div style="margin: 5px 0; border-top: 1px solid #eee; pt: 5px;">
+                    Actions:
+                    <div><label><input type="checkbox" id="act-power-en"> Power:</label> <select id="act-power-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
+                    <div><label><input type="checkbox" id="act-filter-en"> Filter:</label> <select id="act-filter-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
+                    <div><label><input type="checkbox" id="act-heater-en"> Heater:</label> <select id="act-heater-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
+                    <div><label><input type="checkbox" id="act-bubble-en"> Bubble:</label> <select id="act-bubble-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
+                    <div><label><input type="checkbox" id="act-temp-en"> Temp:</label> <input type="number" id="act-temp-val" min="20" max="40" value="38" style="width: 50px;"></div>
+                </div>
+                <button id="btn-add-event" class="btn-on" onclick="addEvent()" style="width: 100%; margin-top: 10px;">Add Scheduled Event</button>
+            </div>
         </div>
-        <hr>
-        <h4>Add Event</h4>
-        <div style="text-align: left; font-size: 0.9em;">
-            <div style="margin-bottom: 5px;">
-                Type: 
-                <select id="sched-type" onchange="toggleSchedType()">
-                    <option value="recurring">Recurring</option>
-                    <option value="once">Once</option>
-                </select>
-            </div>
-            <div id="div-recurring">
-                Days: 
-                <label><input type="checkbox" class="sched-dow" value="1">M</label>
-                <label><input type="checkbox" class="sched-dow" value="2">T</label>
-                <label><input type="checkbox" class="sched-dow" value="3">W</label>
-                <label><input type="checkbox" class="sched-dow" value="4">T</label>
-                <label><input type="checkbox" class="sched-dow" value="5">F</label>
-                <label><input type="checkbox" class="sched-dow" value="6">S</label>
-                <label><input type="checkbox" class="sched-dow" value="0">S</label>
-            </div>
-            <div id="div-once" style="display: none;">
-                Date: <input type="date" id="sched-date">
-            </div>
-            <div style="margin: 5px 0;">
-                Time: <input type="time" id="sched-time">
-            </div>
-            <div style="margin: 5px 0; border-top: 1px solid #eee; pt: 5px;">
-                Actions:
-                <div><label><input type="checkbox" id="act-power-en"> Power:</label> <select id="act-power-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                <div><label><input type="checkbox" id="act-filter-en"> Filter:</label> <select id="act-filter-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                <div><label><input type="checkbox" id="act-heater-en"> Heater:</label> <select id="act-heater-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                <div><label><input type="checkbox" id="act-bubble-en"> Bubble:</label> <select id="act-bubble-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                <div><label><input type="checkbox" id="act-temp-en"> Temp:</label> <input type="number" id="act-temp-val" min="20" max="40" value="38" style="width: 50px;"></div>
-            </div>
-            <button id="btn-add-event" class="btn-on" onclick="addEvent()" style="width: 100%; margin-top: 10px;">Add Scheduled Event</button>
-        </div>
-    </div>
 
-    <div class='card'>
-        <h3>Controls</h3>
-        <div class="btn-group">
-            <button id="btn-power" onclick="toggle('power')">Power</button>
-            <button id="btn-filter" onclick="toggle('filter')">Filter</button>
-            <button id="btn-heater" onclick="toggle('heater')">Heater</button>
-            <button id="btn-bubble" onclick="toggle('bubble')">Bubble</button>
+        <div class='card'>
+            <h3>Controls</h3>
+            <div class="btn-group">
+                <button id="btn-power" onclick="toggle('power')">Power</button>
+                <button id="btn-filter" onclick="toggle('filter')">Filter</button>
+                <button id="btn-heater" onclick="toggle('heater')">Heater</button>
+                <button id="btn-bubble" onclick="toggle('bubble')">Bubble</button>
+            </div>
+            
+            <div class="temp-ctrl">
+                <label>Set Temp:</label>
+                <input type="number" id="target-temp-input" min="20" max="40">
+                <button id="btn-set-temp" class="btn-on" onclick="setTemp()">Set</button>
+            </div>
         </div>
-        
-        <div class="temp-ctrl">
-            <label>Set Temp:</label>
-            <input type="number" id="target-temp-input" min="20" max="40">
-            <button id="btn-set-temp" class="btn-on" onclick="setTemp()">Set</button>
-        </div>
-    </div>
+    </div> <!-- End Container -->
 
     <!--
     <div class="config-box">
