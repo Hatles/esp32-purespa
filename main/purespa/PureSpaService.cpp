@@ -27,15 +27,9 @@ void PureSpaService::run() {
     _io.setup(LANG::EN);
     
     SpaRequest req;
-    unsigned long lastReport = 0;
     
     while (true) {
-        unsigned long now = (unsigned long)(esp_timer_get_time() / 1000);
-
-        if (now - lastReport > 1000) {
-            lastReport = now;
-            ESP_LOGI(TAG, "Status: %s", getStatusJson().c_str());
-        }
+        _io.loop();
 
         // Check for new commands (non-blocking)
         if (xQueueReceive(_cmdQueue, &req, 0) == pdPASS) {
@@ -55,7 +49,6 @@ void PureSpaService::run() {
             ESP_LOGI(TAG, "Command %d execution finished.", (int)req.cmd);
         }
 
-        _io.loop();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

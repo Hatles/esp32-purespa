@@ -245,6 +245,7 @@ private:
 private:
   LANG language;
   unsigned long lastStateUpdateTime = 0;
+  bool init = false;
   char errorBuffer[4];
 };
 

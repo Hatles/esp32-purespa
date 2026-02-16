@@ -1,5 +1,6 @@
 #include "web_server.h"
 #include <esp_log.h>
+#include <esp_netif.h>
 #include <time.h>
 #include <sys/time.h>
 #include <cstring>
@@ -24,7 +25,14 @@ void WebServer::start() {
     static const httpd_uri_t api_status = { .uri = "/api/status", .method = HTTP_GET, .handler = apiStatusHandler };
     static const httpd_uri_t api_control = { .uri = "/api/control", .method = HTTP_POST, .handler = apiControlHandler };
 
-    ESP_LOGI(TAG, "Starting Main server on port 80. Visit http://<IP_ADDRESS>/");
+    esp_netif_ip_info_t ip_info;
+    esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK) {
+        ESP_LOGI(TAG, "Starting Main server on port 80. Visit http://" IPSTR "/", IP2STR(&ip_info.ip));
+    } else {
+        ESP_LOGI(TAG, "Starting Main server on port 80. Visit http://192.168.4.1/ (AP Mode)");
+    }
+
     if (httpd_start(&_mainServer, &configMain) == ESP_OK) {
         httpd_register_uri_handler(_mainServer, &root);
         httpd_register_uri_handler(_mainServer, &index_html);

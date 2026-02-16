@@ -4,6 +4,9 @@
 #include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_log.h"
+
+static const char *TAG = "PureSpaIO";
 
 #if defined MODEL_SB_H20
 #define DEFAULT_MODEL_NAME "Intex PureSpa SB-H20"
@@ -187,7 +190,7 @@ void PureSpaIO::setup(LANG language)
 
   gpio_install_isr_service(0);
   gpio_isr_handler_add(PIN::CLOCK, PureSpaIO::clockRisingISR, this);
-  gpio_isr_handler_add(PIN::LATCH, PureSpaIO::latchRisingISR, this);
+  //gpio_isr_handler_add(PIN::LATCH, PureSpaIO::latchRisingISR, this);
 }
 
 PureSpaIO::MODEL PureSpaIO::getModel() const
@@ -203,13 +206,19 @@ const char* PureSpaIO::getModelName() const
 void PureSpaIO::loop()
 {
   unsigned long now = millis();
+
   if (state.stateUpdated)
   {
+    if (!init) {
+      init = true;
+      ESP_LOGI(TAG, "PureSpaIO Initialized");
+    }
+
     lastStateUpdateTime = now;
     state.online = true;
     state.stateUpdated = false;
   }
-  else if (timeDiff(now, lastStateUpdateTime) > CYCLE::RECEIVE_TIMEOUT)
+  else if (state.online && timeDiff(now, lastStateUpdateTime) > CYCLE::RECEIVE_TIMEOUT)
   {
     state.online = false;
   }
@@ -564,10 +573,54 @@ int PureSpaIO::convertDisplayToCelsius(uint32_t value) const
   return (celsiusValue >= 0) && (celsiusValue <= 60) ? celsiusValue : UNDEF::INT;
 }
 
-IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
+/*IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
 {
   isrState.frameValue = (isrState.frameValue << 1) + !gpio_get_level(PIN::DATA);
   isrState.receivedBits++;
+}*/
+
+
+IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
+{
+  bool data = !gpio_get_level(PIN::DATA);
+  bool enabled = !gpio_get_level(PIN::LATCH);
+
+  if (enabled || isrState.receivedBits == (FRAME::BITS - 1))
+  {
+    isrState.frameValue = (isrState.frameValue << 1) + data;
+    isrState.receivedBits++;
+
+    if (isrState.receivedBits == FRAME::BITS)
+    {
+      state.frameCounter++;
+      if (isrState.frameValue == FRAME_TYPE::CUE)
+      {
+      }
+      else if (isrState.frameValue & FRAME_TYPE::DIGIT)
+      {
+        decodeDisplay();
+      }
+      else if (isrState.frameValue & FRAME_TYPE::LED)
+      {
+        decodeLED();
+      }
+      else if (isrState.frameValue & FRAME_TYPE::BUTTON)
+      {
+        decodeButton();
+      }
+      else if (isrState.frameValue != 0)
+      {
+      }
+
+      isrState.receivedBits = 0;
+    }
+  }
+  else
+  {
+    isrState.receivedBits = 0;
+    state.frameDropped++;
+    state.frameCounter++;
+  }
 }
 
 IRAM_ATTR void PureSpaIO::latchRisingISR(void* arg)
@@ -871,10 +924,10 @@ IRAM_ATTR void PureSpaIO::decodeButton()
 
   if (isrState.reply)
   {
-    ets_delay_us(1);
+    delayMicroseconds(1);
     gpio_set_level(PIN::DATA, 0); // Explicitly pull low
     gpio_set_direction(PIN::DATA, GPIO_MODE_OUTPUT);
-    ets_delay_us(3);
+    delayMicroseconds(2);
     gpio_set_direction(PIN::DATA, GPIO_MODE_INPUT);
     isrState.reply = false;
   }
