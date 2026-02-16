@@ -4,6 +4,7 @@
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_system.h"
+#include "esp_sntp.h"
 
 #include "wifi_manager.h"
 #include "dns_server.h"
@@ -12,6 +13,18 @@
 #include "PureSpaService.h"
 
 static const char *TAG = "app_main";
+
+void init_sntp() {
+    ESP_LOGI(TAG, "Initializing SNTP");
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, "pool.ntp.org");
+    sntp_init();
+    
+    // Set timezone to CET/CEST (example: Europe/Paris)
+    // You might want to make this configurable
+    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+    tzset();
+}
 
 static void disconnect_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data)
@@ -25,6 +38,7 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
 {
     ESP_LOGI(TAG, "Starting webserver");
     WebServer::getInstance().start();
+    init_sntp();
 }
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,

@@ -25,6 +25,10 @@ private:
     static esp_err_t apiStatusHandler(httpd_req_t *req);
     static esp_err_t apiControlHandler(httpd_req_t *req);
     static esp_err_t apiSseHandler(httpd_req_t *req);
+    static esp_err_t apiScheduleGetHandler(httpd_req_t *req);
+    static esp_err_t apiScheduleAddHandler(httpd_req_t *req);
+    static esp_err_t apiScheduleDeleteHandler(httpd_req_t *req);
+    static esp_err_t apiScheduleToggleHandler(httpd_req_t *req);
 };
 
 #endif // WEB_SERVER_H

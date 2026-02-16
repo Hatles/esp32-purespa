@@ -576,9 +576,8 @@ int PureSpaIO::convertDisplayToCelsius(uint32_t value) const
 /*IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
 {
   isrState.frameValue = (isrState.frameValue << 1) + !gpio_get_level(PIN::DATA);
-  isrState.receivedBits++;
+  isrState.receivedBits = isrState.receivedBits + 1;
 }*/
-
 
 IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
 {
@@ -588,11 +587,11 @@ IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
   if (enabled || isrState.receivedBits == (FRAME::BITS - 1))
   {
     isrState.frameValue = (isrState.frameValue << 1) + data;
-    isrState.receivedBits++;
+    isrState.receivedBits = isrState.receivedBits + 1;
 
     if (isrState.receivedBits == FRAME::BITS)
     {
-      state.frameCounter++;
+      state.frameCounter = state.frameCounter + 1;
       if (isrState.frameValue == FRAME_TYPE::CUE)
       {
       }
@@ -618,8 +617,8 @@ IRAM_ATTR void PureSpaIO::clockRisingISR(void* arg)
   else
   {
     isrState.receivedBits = 0;
-    state.frameDropped++;
-    state.frameCounter++;
+    state.frameDropped = state.frameDropped + 1;
+    state.frameCounter = state.frameCounter + 1;
   }
 }
 
@@ -627,7 +626,7 @@ IRAM_ATTR void PureSpaIO::latchRisingISR(void* arg)
 {
   if (isrState.receivedBits == FRAME::BITS)
   {
-    state.frameCounter++;
+    state.frameCounter = state.frameCounter + 1;
     
     if (isrState.frameValue == FRAME_TYPE::CUE) {
     }
@@ -645,8 +644,8 @@ IRAM_ATTR void PureSpaIO::latchRisingISR(void* arg)
   }
   else
   {
-    state.frameCounter++;
-    state.frameDropped++;
+    state.frameCounter = state.frameCounter + 1;
+    state.frameDropped = state.frameDropped + 1;
     isrState.receivedBits = 0;
   }
 }
