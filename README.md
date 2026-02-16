@@ -1,70 +1,78 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 | Linux |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- | -------- | -------- | ----- |
+# ESP32 PureSpa Controller
 
-# Simple HTTPD Server Example
+This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp8266-intexsbh20) project to the **ESP32** platform. It allows for WiFi remote control of Intex PureSpa whirlpools.
 
-The Example consists of HTTPD server demo with demonstration of URI handling :
-    1. URI \hello for GET command returns "Hello World!" message
-    2. URI \echo for POST command echoes back the POSTed message
-    3. URI \sse for GET command sends a message to client every second
+**⚠️ WARNING: USE AT YOUR OWN RISK. Opening your spa controller and connecting custom electronics voids your warranty and involves mains voltage risks.**
 
-## User Callback
+## Table of Contents
+- [Compatibility](#compatibility)
+- [New Features](#new-features-esp32)
+- [Technical Implementation](#technical-implementation)
+- [Real-time Status](#real-time-status)
+- [Installation](#installation)
+- [Disclaimer](#disclaimer)
 
-The example includes a simple user callback that can be used to get the SSL context (connection information) when the server is being initialized. To enable the user callback, set `CONFIG_EXAMPLE_ENABLE_HTTPS_USER_CALLBACK` to `y` in the project configuration menu.
+## Compatibility
 
-## Server-Sent Events (SSE)
+This project supports the same models as the original ESP8266 version:
+- Intex PureSpa SB-H20
+- Intex SimpleSpa SB–B20
+- Intex PureSpa SSP-H-20-1
+- Intex PureSpa SJB-HS
 
-The example also includes a simple SSE handler (having endpoint \sse), which sends a message to the client every second. To enable SSE, set `CONFIG_EXAMPLE_ENABLE_SSE_HANDLER` to `y` in the project configuration menu.
+## New Features (ESP32)
 
-## How to use example
+Unlike the original MQTT-centric firmware, this ESP32 port focuses on a standalone Web UI experience, while maintaining the core logic for communicating with the spa controller.
 
-### Hardware Required
+### 1. Web User Interface
+A hosted web server provides a dashboard to:
+- Monitor status (Temperature, Power, Filter, Heater, Bubbles).
+- Control all functions remotely.
+- View connection status and debug info.
 
-* A development board with ESP32/ESP32-S2/ESP32-C3 SoC (e.g., ESP32-DevKitC, ESP-WROVER-KIT, etc.)
-* A USB cable for power supply and programming
+### 2. Built-in Scheduling
+The ESP32 stores a schedule in its non-volatile memory (NVS), allowing automation without an external hub:
+- **Recurring Events:** Schedule actions for specific days of the week (e.g., "Every Mon, Wed at 18:00").
+- **One-time Events:** Schedule a specific date and time.
+- **Actions:** Turn Power, Filter, Heater, or Bubbles ON/OFF, and set target Temperature.
+- **Auto-Power On:** If a scheduled event requires a feature (e.g., Heater ON) and the Spa is OFF, it will automatically power ON the Spa first.
 
-### Configure the project
+### 3. WiFi Access Point & Manager
+- **Access Point Mode:** If no known WiFi is found, the device creates an Access Point named `ESP32-PureSpa-Config`.
+- **Captive Portal:** Connect to the AP to configure your home WiFi credentials via a simple web page.
 
-```
-idf.py menuconfig
-```
-* Open the project configuration menu (`idf.py menuconfig`) to configure Wi-Fi or Ethernet. See "Establishing Wi-Fi or Ethernet Connection" section in [examples/protocols/README.md](../../README.md) for more details.
+### 4. Missing Features
+- **MQTT:** Support for MQTT has **not** been implemented yet in this port.
 
-### Build and Flash
+## Technical Implementation
 
-Build the project and flash it to the board, then run monitor tool to view serial output:
+### Multicore Architecture
+The ESP32's dual-core architecture is utilized to improve stability compared to the ESP8266 version:
+- **Core 0 / WiFi:** Handles the network stack, Web Server, and background tasks.
+- **Core 1 / PureSpaIO:** The specific protocol to read/write signals to the Spa controller runs on a dedicated FreeRTOS task pinned to a separate core.
 
-```
-idf.py -p PORT flash monitor
-```
+**Improvement:** unlike the ESP8266 version, **we do not need to disable WiFi** to reliably send button signals or decode the display frames. The separation of concerns allows the IO protocol to run with high priority without being interrupted by network traffic.
 
-(Replace PORT with the name of the serial port to use.)
+**Challenges:** Despite the dual-core setup, achieving perfect timing was challenging. There are occasional synchronization issues or race conditions between variables shared across cores, which can make the timing strict. However, the current implementation is stable for daily use.
 
-(To exit the serial monitor, type ``Ctrl-]``.)
+## Real-time Status
 
-See the Getting Started Guide for full steps to configure and use ESP-IDF to build projects.
+### Polling Method
+The Web UI currently uses **HTTP Polling** (fetching status every 2 seconds) to update the dashboard. 
 
-### Test the example :
-        * run the test script : "python scripts/client.py \<IP\> \<port\> \<MSG\>"
-            * the provided test script first does a GET \hello and displays the response
-            * the script does a POST to \echo with the user input \<MSG\> and displays the response
-        * or use curl (assuming IP is 192.168.43.130):
-            1. "curl 192.168.43.130:80/hello"  - tests the GET "\hello" handler
-            2. "curl -X POST --data-binary @anyfile 192.168.43.130:80/echo > tmpfile"
-                * "anyfile" is the file being sent as request body and "tmpfile" is where the body of the response is saved
-                * since the server echoes back the request body, the two files should be same, as can be confirmed using : "cmp anyfile tmpfile"
-            3. "curl -X PUT -d "0" 192.168.43.130:80/ctrl" - disable /hello and /echo handlers
-            4. "curl -X PUT -d "1" 192.168.43.130:80/ctrl" -  enable /hello and /echo handlers
+### Why not Server-Sent Events (SSE)?
+SSE was implemented and tested but ultimately abandoned. The ESP32's HTTP server implementation (esp_http_server) is single-threaded by default. An open SSE connection would lock the server, preventing other requests (like button clicks or API calls) from being processed until the connection timed out.
 
-## Example Output
-```
-I (9580) example_connect: - IPv4 address: 192.168.194.219
-I (9580) example_connect: - IPv6 address: fe80:0000:0000:0000:266f:28ff:fe80:2c74, type: ESP_IP6_ADDR_IS_LINK_LOCAL
-I (9590) example: Starting server on port: '80'
-I (9600) example: Registering URI handlers
-I (66450) example: Found header => Host: 192.168.194.219
-I (66460) example: Request headers lost
-```
+### Future: WebSockets
+The ideal solution for real-time, bi-directional communication without the blocking issues of SSE or the overhead of polling is **WebSockets**. This is planned for a future update.
 
-## Troubleshooting
-* If the server log shows "httpd_parse: parse_block: request URI/header too long", especially when handling POST requests, then you probably need to increase HTTPD_MAX_REQ_HDR_LEN, which you can find in the project configuration menu (`idf.py menuconfig`): Component config -> HTTP Server -> Max HTTP Request Header Length
+## Credits
+
+This project is heavily based on the work of:
+- [Jens B. (jnsbyr)](https://github.com/jnsbyr/esp8266-intexsbh20) - Original ESP8266 reverse engineering and firmware.
+- [Geoffroy Hubert (diyscip)](https://github.com/yorffoeg/diyscip) - Initial reverse engineering of the protocol.
+- [Elektroarzt](https://github.com/Elektroarzt) - PCB Designs.
+
+## Disclaimer
+
+This is a hobby project. **There is no warranty.** You are responsible for any damage to your hardware or yourself. Working with electricity and water requires extreme caution.
