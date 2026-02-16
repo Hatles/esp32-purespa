@@ -44,6 +44,26 @@ The ESP32 stores a schedule in its non-volatile memory (NVS), allowing automatio
 ### 4. Missing Features
 - **MQTT:** Support for MQTT has **not** been implemented yet in this port.
 
+## Hardware
+
+This project simplifies the original hardware design by leveraging readily available modules.
+
+### Components Used:
+- **ESP32-WROOM-32:** A standard ESP32 development board.
+- **Bi-Directional Logic Level Converter (TTL):** Instead of building a voltage divider with resistors, I used a pre-made module to safely interface the Spa's 5V logic with the ESP32's 3.3V logic. This is cleaner and less error-prone.
+  - **Connections:**
+    - Spa 5V -> HV (High Voltage) on Converter
+    - Spa GND -> GND on Converter
+    - ESP32 3.3V -> LV (Low Voltage) on Converter
+    - ESP32 GND -> GND on Converter
+    - Signal Lines (Data, Clock, Latch) pass through the converter channels (HVx <-> LVx).
+
+### Connectors & Plug
+To connect to the Intex control panel without cutting wires, you can 3D print the connectors. I successfully used the models from the original project:
+
+- [Intex PureSpa connectors (Thingiverse)](https://www.thingiverse.com/thing:4130911)
+- [Case incl. Intex PureSpa connectors (Printables)](https://www.printables.com/en/model/509289-intex-purespa-whirlpool-controller-electromechanic)
+
 ## Technical Implementation
 
 ### Multicore Architecture
