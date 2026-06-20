@@ -19,6 +19,10 @@ interface SpaStatus {
   heater: boolean;
   bubble: boolean;
   time: string;
+  free_heap: number;
+  min_free_heap: number;
+  uptime: number;
+  wifi_rssi: number;
 }
 
 // Interface for ScheduledEvent
@@ -44,6 +48,8 @@ interface ScheduledEvent {
   tempValue: number;
 }
 
+let startTime = Date.now();
+
 // In-memory mock state
 let state: SpaStatus = {
   online: true,
@@ -54,6 +60,10 @@ let state: SpaStatus = {
   heater: false,
   bubble: false,
   time: new Date().toISOString().replace('T', ' ').substring(0, 19),
+  free_heap: 198000,
+  min_free_heap: 172000,
+  uptime: 0,
+  wifi_rssi: -58,
 };
 
 let scheduleList: ScheduledEvent[] = [
@@ -107,6 +117,7 @@ let nextEventId = 3;
 setInterval(() => {
   const now = new Date();
   state.time = now.toISOString().replace('T', ' ').substring(0, 19);
+  state.uptime = Math.floor((Date.now() - startTime) / 1000);
 
   // If power is ON and heater is ON, actual temp approaches target temp
   if (state.power && state.heater) {
@@ -272,6 +283,37 @@ app.post('/api/schedule/toggle', (req: Request, res: Response) => {
   if (ev) {
     ev.enabled = enabled;
   }
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/admin/time', (req: Request, res: Response) => {
+  const { timestamp } = req.body;
+  const syncDate = new Date(timestamp * 1000);
+  console.log(`[Admin API] Syncing time to: ${syncDate.toISOString()}`);
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/admin/reboot', (req: Request, res: Response) => {
+  console.log('[Admin API] Reboot requested... Resetting uptime.');
+  startTime = Date.now();
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/admin/reset/wifi', (req: Request, res: Response) => {
+  console.log('[Admin API] Reset WiFi requested... Redirecting to config page.');
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/admin/reset/schedule', (req: Request, res: Response) => {
+  console.log('[Admin API] Reset schedule requested... Clearing events list.');
+  scheduleList = [];
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/admin/reset/all', (req: Request, res: Response) => {
+  console.log('[Admin API] Factory Reset requested... Clearing everything.');
+  scheduleList = [];
+  startTime = Date.now();
   res.json({ status: 'ok' });
 });
 

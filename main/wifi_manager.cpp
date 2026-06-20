@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "mdns.h"
+#include "status_led.h"
 
 static const char *TAG = "WiFiManager";
 
@@ -52,22 +53,27 @@ void WiFiManager::eventHandler(void* arg, esp_event_base_t event_base, int32_t e
     WiFiManager* self = static_cast<WiFiManager*>(arg);
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        StatusLed::getInstance().setState(LedState::CONNECTING);
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        self->_connected = false;
         if (self->_retryNum < MAX_RETRY) {
+            StatusLed::getInstance().setState(LedState::CONNECTING);
             esp_wifi_connect();
             self->_retryNum++;
             ESP_LOGI(TAG, "Retry to connect to the AP (%d/%d)", self->_retryNum, MAX_RETRY);
         } else {
             ESP_LOGI(TAG, "Connect to the AP fail, starting AP mode");
+            StatusLed::getInstance().setState(LedState::ERROR);
+            vTaskDelay(pdMS_TO_TICKS(1500)); // Show error double-blink pattern
             self->startAP();
         }
-        self->_connected = false;
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "Got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         self->_retryNum = 0;
         self->_connected = true;
+        StatusLed::getInstance().setState(LedState::CONNECTED);
     }
 }
 
@@ -89,6 +95,7 @@ void WiFiManager::startSTA() {
 
     if (strlen(ssid) > 0) {
         ESP_LOGI(TAG, "Starting STA mode with SSID: %s", ssid);
+        StatusLed::getInstance().setState(LedState::CONNECTING);
         wifi_config_t wifi_config = {};
         wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
         strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
@@ -106,6 +113,7 @@ void WiFiManager::startSTA() {
 
 void WiFiManager::startAP() {
     ESP_LOGI(TAG, "Starting AP mode. Connect to 'ESP32-PureSpa-Config' and visit http://192.168.4.1");
+    StatusLed::getInstance().setState(LedState::AP_MODE);
     wifi_config_t wifi_config = {};
     strcpy((char*)wifi_config.ap.ssid, "ESP32-PureSpa-Config");
     wifi_config.ap.ssid_len = strlen("ESP32-PureSpa-Config");

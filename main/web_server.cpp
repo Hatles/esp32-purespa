@@ -6,6 +6,10 @@
 #include <cstring>
 #include "cJSON.h"
 #include "PureSpaService.h"
+#include "nvs_flash.h"
+#include "esp_system.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "WebServer";
 
@@ -29,6 +33,11 @@ void WebServer::start() {
     static const httpd_uri_t api_schedule_update = { .uri = "/api/schedule/update", .method = HTTP_POST, .handler = apiScheduleUpdateHandler, .user_ctx = NULL };
     static const httpd_uri_t api_schedule_delete = { .uri = "/api/schedule/delete", .method = HTTP_POST, .handler = apiScheduleDeleteHandler, .user_ctx = NULL };
     static const httpd_uri_t api_schedule_toggle = { .uri = "/api/schedule/toggle", .method = HTTP_POST, .handler = apiScheduleToggleHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_time = { .uri = "/api/admin/time", .method = HTTP_POST, .handler = apiAdminTimeHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_reboot = { .uri = "/api/admin/reboot", .method = HTTP_POST, .handler = apiAdminRebootHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_reset_wifi = { .uri = "/api/admin/reset/wifi", .method = HTTP_POST, .handler = apiAdminResetWifiHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_reset_schedule = { .uri = "/api/admin/reset/schedule", .method = HTTP_POST, .handler = apiAdminResetScheduleHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_reset_all = { .uri = "/api/admin/reset/all", .method = HTTP_POST, .handler = apiAdminResetAllHandler, .user_ctx = NULL };
 
     esp_netif_ip_info_t ip_info;
     esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
@@ -48,6 +57,11 @@ void WebServer::start() {
         httpd_register_uri_handler(_mainServer, &api_schedule_update);
         httpd_register_uri_handler(_mainServer, &api_schedule_delete);
         httpd_register_uri_handler(_mainServer, &api_schedule_toggle);
+        httpd_register_uri_handler(_mainServer, &api_admin_time);
+        httpd_register_uri_handler(_mainServer, &api_admin_reboot);
+        httpd_register_uri_handler(_mainServer, &api_admin_reset_wifi);
+        httpd_register_uri_handler(_mainServer, &api_admin_reset_schedule);
+        httpd_register_uri_handler(_mainServer, &api_admin_reset_all);
     }
 
     /*
@@ -267,5 +281,80 @@ esp_err_t WebServer::apiScheduleToggleHandler(httpd_req_t *req) {
 
     cJSON_Delete(json);
     httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminTimeHandler(httpd_req_t *req) {
+    char buf[128];
+    int ret = httpd_req_recv(req, buf, req->content_len);
+    if (ret <= 0) return ESP_FAIL;
+    buf[ret] = '\0';
+
+    cJSON *json = cJSON_Parse(buf);
+    if (json == NULL) return ESP_FAIL;
+
+    cJSON *ts_item = cJSON_GetObjectItem(json, "timestamp");
+    if (cJSON_IsNumber(ts_item)) {
+        time_t timestamp = ts_item->valueint;
+        struct timeval tv;
+        tv.tv_sec = timestamp;
+        tv.tv_usec = 0;
+        settimeofday(&tv, NULL);
+        ESP_LOGI(TAG, "System time synchronized to: %ld", (long)timestamp);
+    }
+
+    cJSON_Delete(json);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+static void reboot_task(void *param) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
+}
+
+esp_err_t WebServer::apiAdminRebootHandler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Reboot requested");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    xTaskCreate(reboot_task, "reboot_task", 2048, NULL, 5, NULL);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminResetWifiHandler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Reset Wi-Fi credentials requested");
+    
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("wifi_creds", NVS_READWRITE, &nvs_handle);
+    if (err == ESP_OK) {
+        nvs_erase_all(nvs_handle);
+        nvs_commit(nvs_handle);
+        nvs_close(nvs_handle);
+        ESP_LOGI(TAG, "Wi-Fi credentials erased from NVS");
+    }
+    
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    xTaskCreate(reboot_task, "reboot_task", 2048, NULL, 5, NULL);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminResetScheduleHandler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Reset schedule requested");
+    PureSpaService::getInstance().clearSchedule();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminResetAllHandler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Factory reset requested");
+    
+    nvs_flash_erase();
+    
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    xTaskCreate(reboot_task, "reboot_task", 2048, NULL, 5, NULL);
     return ESP_OK;
 }

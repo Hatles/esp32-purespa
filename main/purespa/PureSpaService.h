@@ -68,6 +68,7 @@ public:
     void updateEvent(int id, const ScheduledEvent& event);
     void deleteEvent(int id);
     void toggleEvent(int id, bool enabled);
+    void clearSchedule();
     void loadSchedule();
     void saveSchedule();
 

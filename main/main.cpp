@@ -11,6 +11,7 @@
 #include "captive_portal.h"
 #include "web_server.h"
 #include "PureSpaService.h"
+#include "status_led.h"
 
 static const char *TAG = "app_main";
 
@@ -67,6 +68,7 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    StatusLed::getInstance().init();
     WiFiManager::getInstance().init();
 
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, NULL));

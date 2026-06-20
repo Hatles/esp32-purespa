@@ -745,6 +745,11 @@
                 width: 400px;
                 max-height: 80vh;
             }
+            .text-val {
+                font-size: 15px;
+                color: var(--text-secondary);
+                font-weight: 500;
+            }
         }
     </style>
 </head>
@@ -756,7 +761,12 @@
                 <h1 data-i18n="title">PureSpa</h1>
                 <span id="current-time" class="time-sub" data-i18n="loading">Loading...</span>
             </div>
-            <div id="online-badge" class="badge badge-offline">Offline</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="online-badge" class="badge badge-offline">Offline</div>
+                <button id="settings-btn" class="link-btn" style="padding: 4px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); margin-right: -4px;" onclick="openAdminModal()">
+                    <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.34 14.86,5.08L14.49,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.51,2.42L9.14,5.08C8.53,5.34 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.95C7.96,18.34 8.53,18.66 9.14,18.92L9.51,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.49,21.58L14.86,18.92C15.47,18.66 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+                </button>
+            </div>
         </header>
 
         <!-- Temperature Display with SVG Dial -->
@@ -1012,6 +1022,67 @@
         </div>
     </div>
 
+    <!-- Administration Bottom Sheet Modal -->
+    <div class="modal-overlay" id="admin-modal" onclick="closeAdminModalOnOverlay(event)">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-hdr-btn cancel-btn" onclick="closeAdminModal()" data-i18n="cancel">Cancel</button>
+                <span class="modal-hdr-title" data-i18n="adminTitle">Administration</span>
+                <button class="modal-hdr-btn done-btn" onclick="closeAdminModal()" data-i18n="done">Done</button>
+            </div>
+            <div class="modal-body">
+                <!-- Time Synchronization -->
+                <div class="section-title" data-i18n="timeSync">Time Synchronization</div>
+                <div class="group-card">
+                    <div class="row-item">
+                        <span class="row-label" data-i18n="spaTime">Spa Time</span>
+                        <span id="admin-spa-time" class="text-val">--</span>
+                    </div>
+                    <div class="row-item">
+                        <span class="row-label" data-i18n="browserTime">Browser Time</span>
+                        <span id="admin-browser-time" class="text-val">--</span>
+                    </div>
+                </div>
+                <button type="button" class="stepper-btn" style="width: 100%; border-radius: 12px; font-size: 16px; font-weight: 600; padding: 12px; background-color: var(--card-bg); color: var(--tint-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 8px;" onclick="syncTime()" data-i18n="syncTimeBtn">Synchronize Time</button>
+
+                <!-- Diagnostics -->
+                <div class="section-title" style="margin-top: 16px;" data-i18n="diagnostics">Diagnostics</div>
+                <div class="group-card">
+                    <div class="row-item">
+                        <span class="row-label" data-i18n="uptime">Uptime</span>
+                        <span id="diag-uptime" class="text-val">--</span>
+                    </div>
+                    <div class="row-item">
+                        <span class="row-label" data-i18n="freeRam">Free RAM</span>
+                        <span id="diag-ram" class="text-val">--</span>
+                    </div>
+                    <div class="row-item">
+                        <span class="row-label" data-i18n="wifiRssi">Wi-Fi Signal</span>
+                        <span id="diag-rssi" class="text-val">--</span>
+                    </div>
+                </div>
+
+                <!-- Reboot & Reset Options -->
+                <div class="section-title" style="margin-top: 16px;" data-i18n="systemActions">System Actions</div>
+                <div class="group-card">
+                    <div class="row-item" style="cursor: pointer;" onclick="rebootDevice()">
+                        <span class="row-label" style="color: var(--tint-color);" data-i18n="rebootBtn">Restart ESP32</span>
+                    </div>
+                    <div class="row-item" style="cursor: pointer;" onclick="resetWifi()">
+                        <span class="row-label" style="color: #ff9500;" data-i18n="resetWifiBtn">Reset Wi-Fi Settings</span>
+                    </div>
+                    <div class="row-item" style="cursor: pointer;" onclick="resetSchedule()">
+                        <span class="row-label" style="color: #ff9500;" data-i18n="resetScheduleBtn">Reset Schedule</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 16px;">
+                    <button type="button" class="ios-danger-btn" onclick="factoryReset()" data-i18n="factoryResetBtn">Factory Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // I18N Translation Dictionary
         const i18n = {
@@ -1061,7 +1132,33 @@
                 daysFull: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
                 alertTime: "Please set a time",
                 alertDays: "Please select at least one day",
-                alertDate: "Please select a date"
+                alertDate: "Please select a date",
+                adminTitle: "Administration",
+                done: "Done",
+                timeSync: "Time Synchronization",
+                spaTime: "Spa Time",
+                browserTime: "Browser Time",
+                syncTimeBtn: "Synchronize Time",
+                diagnostics: "Diagnostics",
+                uptime: "Uptime",
+                freeRam: "Free RAM",
+                wifiRssi: "Wi-Fi Signal",
+                systemActions: "System Actions",
+                rebootBtn: "Restart ESP32",
+                resetWifiBtn: "Reset Wi-Fi Settings",
+                resetScheduleBtn: "Reset Schedule",
+                factoryResetBtn: "Factory Reset",
+                confirmReboot: "Are you sure you want to restart the ESP32?",
+                confirmResetWifi: "Are you sure you want to erase Wi-Fi settings? The device will reboot into Configuration mode.",
+                confirmResetSchedule: "Are you sure you want to clear all scheduled events?",
+                confirmFactoryReset: "WARNING: This will erase all Wi-Fi settings, schedules, and configurations. Are you absolutely sure?",
+                timeSynced: "Time successfully synchronized!",
+                actionExecuted: "Action executed successfully!",
+                rebooting: "Rebooting...",
+                seconds: "seconds",
+                minutes: "minutes",
+                hours: "hours",
+                days: "days"
             },
             fr: {
                 title: "Contrôleur PureSpa",
@@ -1109,7 +1206,33 @@
                 daysFull: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
                 alertTime: "Veuillez choisir une heure",
                 alertDays: "Veuillez choisir au moins un jour",
-                alertDate: "Veuillez choisir une date"
+                alertDate: "Veuillez choisir une date",
+                adminTitle: "Administration",
+                done: "Terminé",
+                timeSync: "Synchronisation de l'heure",
+                spaTime: "Heure du Spa",
+                browserTime: "Heure du navigateur",
+                syncTimeBtn: "Synchroniser l'heure",
+                diagnostics: "Diagnostics",
+                uptime: "Uptime",
+                freeRam: "RAM libre",
+                wifiRssi: "Signal Wi-Fi",
+                systemActions: "Actions système",
+                rebootBtn: "Redémarrer l'ESP32",
+                resetWifiBtn: "Réinitialiser le Wi-Fi",
+                resetScheduleBtn: "Réinitialiser le planning",
+                factoryResetBtn: "Réinitialisation d'usine",
+                confirmReboot: "Êtes-vous sûr de vouloir redémarrer l'ESP32 ?",
+                confirmResetWifi: "Êtes-vous sûr de vouloir effacer la configuration Wi-Fi ? L'appareil redémarrera en mode configuration.",
+                confirmResetSchedule: "Êtes-vous sûr de vouloir supprimer tous les événements programmés ?",
+                confirmFactoryReset: "ATTENTION : Cela va effacer toute la configuration Wi-Fi, les plannings et les paramètres. Êtes-vous absolument sûr ?",
+                timeSynced: "Heure synchronisée avec succès !",
+                actionExecuted: "Action exécutée avec succès !",
+                rebooting: "Redémarrage en cours...",
+                seconds: "secondes",
+                minutes: "minutes",
+                hours: "heures",
+                days: "jours"
             }
         };
 
@@ -1677,6 +1800,145 @@
             }
         }
 
+        // Administration Modal Logic
+        let browserTimeInterval = null;
+        let lastFetchedData = null;
+
+        function openAdminModal() {
+            document.getElementById('admin-modal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // Start updating browser time
+            updateBrowserTime();
+            browserTimeInterval = setInterval(updateBrowserTime, 1000);
+            
+            // Force diagnostics update
+            if (lastFetchedData) {
+                updateAdminMetrics(lastFetchedData);
+            }
+        }
+
+        function closeAdminModal() {
+            document.getElementById('admin-modal').classList.remove('active');
+            document.body.style.overflow = '';
+            if (browserTimeInterval) {
+                clearInterval(browserTimeInterval);
+                browserTimeInterval = null;
+            }
+        }
+
+        function closeAdminModalOnOverlay(e) {
+            if (e.target.id === 'admin-modal') {
+                closeAdminModal();
+            }
+        }
+
+        function updateBrowserTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hour = String(now.getHours()).padStart(2, '0');
+            const minute = String(now.getMinutes()).padStart(2, '0');
+            const second = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('admin-browser-time').innerText = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+        }
+
+        function formatUptime(seconds) {
+            if (seconds === undefined || isNaN(seconds)) return '--';
+            if (seconds < 60) return seconds + ' ' + t.seconds;
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + ' ' + t.minutes + ' ' + (seconds % 60) + ' ' + t.seconds;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + ' ' + t.hours + ' ' + (minutes % 60) + ' ' + t.minutes;
+            const days = Math.floor(hours / 24);
+            return days + ' ' + t.days + ' ' + (hours % 24) + ' ' + t.hours;
+        }
+
+        function formatRam(bytes) {
+            if (bytes === undefined || isNaN(bytes)) return '--';
+            return Math.round(bytes / 1024) + ' KB';
+        }
+
+        function formatRssi(rssi) {
+            if (rssi === undefined || rssi === -127 || isNaN(rssi)) return t.disconnected;
+            if (rssi >= -50) return '🟢 Excellent (' + rssi + ' dBm)';
+            if (rssi >= -70) return '🟡 Good (' + rssi + ' dBm)';
+            if (rssi >= -85) return '🟡 Fair (' + rssi + ' dBm)';
+            return '🔴 Weak (' + rssi + ' dBm)';
+        }
+
+        function updateAdminMetrics(data) {
+            document.getElementById('admin-spa-time').innerText = data.time || 'Not set';
+            document.getElementById('diag-uptime').innerText = formatUptime(data.uptime);
+            document.getElementById('diag-ram').innerText = formatRam(data.free_heap) + ' (Min: ' + formatRam(data.min_free_heap) + ')';
+            document.getElementById('diag-rssi').innerText = formatRssi(data.wifi_rssi);
+        }
+
+        async function syncTime() {
+            const timestamp = Math.floor(Date.now() / 1000);
+            try {
+                const r = await fetch('/api/admin/time', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ timestamp: timestamp })
+                });
+                if (r.ok) {
+                    alert(t.timeSynced);
+                } else {
+                    alert('Sync failed');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function rebootDevice() {
+            if (!confirm(t.confirmReboot)) return;
+            try {
+                await fetch('/api/admin/reboot', { method: 'POST' });
+                alert(t.rebooting);
+                closeAdminModal();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function resetWifi() {
+            if (!confirm(t.confirmResetWifi)) return;
+            try {
+                await fetch('/api/admin/reset/wifi', { method: 'POST' });
+                alert(t.rebooting);
+                closeAdminModal();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function resetSchedule() {
+            if (!confirm(t.confirmResetSchedule)) return;
+            try {
+                const r = await fetch('/api/admin/reset/schedule', { method: 'POST' });
+                if (r.ok) {
+                    alert(t.actionExecuted);
+                    fetchSchedule();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function factoryReset() {
+            if (!confirm(t.confirmFactoryReset)) return;
+            try {
+                await fetch('/api/admin/reset/all', { method: 'POST' });
+                alert(t.rebooting);
+                closeAdminModal();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
         // Initialize translations
         document.title = t.title;
         initTranslations();
@@ -1688,7 +1950,14 @@
         function pollStatus() {
             fetch('/api/status')
                 .then(r => r.json())
-                .then(data => updateUI(data))
+                .then(data => {
+                    lastFetchedData = data;
+                    updateUI(data);
+                    const adminModal = document.getElementById('admin-modal');
+                    if (adminModal && adminModal.classList.contains('active')) {
+                        updateAdminMetrics(data);
+                    }
+                })
                 .catch(e => {
                     console.error('Polling error:', e);
                     updateUI({ online: false, power: false });

@@ -5,6 +5,8 @@
 #include "esp_log.h"
 #include "cJSON.h"
 #include "nvs_flash.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
 #include <time.h>
 #include <algorithm>
 
@@ -168,6 +170,18 @@ std::string PureSpaService::getStatusJson() {
     } else {
         cJSON_AddStringToObject(root, "time", "Not set");
     }
+
+    // System diagnostics
+    cJSON_AddNumberToObject(root, "free_heap", esp_get_free_heap_size());
+    cJSON_AddNumberToObject(root, "min_free_heap", esp_get_minimum_free_heap_size());
+    cJSON_AddNumberToObject(root, "uptime", esp_timer_get_time() / 1000000);
+    
+    int rssi = -127;
+    wifi_ap_record_t ap_info;
+    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+        rssi = ap_info.rssi;
+    }
+    cJSON_AddNumberToObject(root, "wifi_rssi", rssi);
     
     char *json_str = cJSON_PrintUnformatted(root);
     std::string result = json_str ? json_str : "{}";
@@ -288,6 +302,25 @@ void PureSpaService::toggleEvent(int id, bool enabled) {
     }
     if (!found) ESP_LOGW(TAG, "Failed to toggle event ID %d: Not found", id);
     saveSchedule();
+}
+
+void PureSpaService::clearSchedule() {
+    std::lock_guard<std::recursive_mutex> lock(_eventsMutex);
+    _events.clear();
+    _nextEventId = 1;
+    ESP_LOGI(TAG, "Schedule cleared from memory. Resetting NVS...");
+    
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open(SCHEDULE_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err == ESP_OK) {
+        nvs_erase_key(nvs_handle, SCHEDULE_KEY);
+        nvs_set_i32(nvs_handle, "next_id", _nextEventId);
+        nvs_commit(nvs_handle);
+        nvs_close(nvs_handle);
+        ESP_LOGI(TAG, "Schedule erased from NVS");
+    } else {
+        ESP_LOGE(TAG, "Error opening NVS for clearing schedule: %s", esp_err_to_name(err));
+    }
 }
 
 void PureSpaService::saveSchedule() {

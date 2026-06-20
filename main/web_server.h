@@ -30,6 +30,11 @@ private:
     static esp_err_t apiScheduleUpdateHandler(httpd_req_t *req);
     static esp_err_t apiScheduleDeleteHandler(httpd_req_t *req);
     static esp_err_t apiScheduleToggleHandler(httpd_req_t *req);
+    static esp_err_t apiAdminTimeHandler(httpd_req_t *req);
+    static esp_err_t apiAdminRebootHandler(httpd_req_t *req);
+    static esp_err_t apiAdminResetWifiHandler(httpd_req_t *req);
+    static esp_err_t apiAdminResetScheduleHandler(httpd_req_t *req);
+    static esp_err_t apiAdminResetAllHandler(httpd_req_t *req);
 };
 
 #endif // WEB_SERVER_H
