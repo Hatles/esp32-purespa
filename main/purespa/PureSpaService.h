@@ -65,6 +65,7 @@ public:
     // Scheduling
     std::string getScheduleJson();
     void addEvent(const ScheduledEvent& event);
+    void updateEvent(int id, const ScheduledEvent& event);
     void deleteEvent(int id);
     void toggleEvent(int id, bool enabled);
     void loadSchedule();

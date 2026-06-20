@@ -27,6 +27,7 @@ private:
     static esp_err_t apiSseHandler(httpd_req_t *req);
     static esp_err_t apiScheduleGetHandler(httpd_req_t *req);
     static esp_err_t apiScheduleAddHandler(httpd_req_t *req);
+    static esp_err_t apiScheduleUpdateHandler(httpd_req_t *req);
     static esp_err_t apiScheduleDeleteHandler(httpd_req_t *req);
     static esp_err_t apiScheduleToggleHandler(httpd_req_t *req);
 };

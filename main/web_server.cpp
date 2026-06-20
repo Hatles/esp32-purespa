@@ -9,8 +9,8 @@
 
 static const char *TAG = "WebServer";
 
-extern const uint8_t index_html_start[] asm("_binary_index_html_start");
-extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
+extern const uint8_t index_html_gz_start[] asm("_binary_index_html_gz_start");
+extern const uint8_t index_html_gz_end[]   asm("_binary_index_html_gz_end");
 
 void WebServer::start() {
     if (_mainServer != NULL) return;
@@ -20,14 +20,15 @@ void WebServer::start() {
     configMain.server_port = 80;
     configMain.lru_purge_enable = true;
 
-    static const httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = rootGetHandler };
-    static const httpd_uri_t index_html = { .uri = "/index.html", .method = HTTP_GET, .handler = rootGetHandler };
-    static const httpd_uri_t api_status = { .uri = "/api/status", .method = HTTP_GET, .handler = apiStatusHandler };
-    static const httpd_uri_t api_control = { .uri = "/api/control", .method = HTTP_POST, .handler = apiControlHandler };
-    static const httpd_uri_t api_schedule_get = { .uri = "/api/schedule", .method = HTTP_GET, .handler = apiScheduleGetHandler };
-    static const httpd_uri_t api_schedule_add = { .uri = "/api/schedule/add", .method = HTTP_POST, .handler = apiScheduleAddHandler };
-    static const httpd_uri_t api_schedule_delete = { .uri = "/api/schedule/delete", .method = HTTP_POST, .handler = apiScheduleDeleteHandler };
-    static const httpd_uri_t api_schedule_toggle = { .uri = "/api/schedule/toggle", .method = HTTP_POST, .handler = apiScheduleToggleHandler };
+    static const httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = rootGetHandler, .user_ctx = NULL };
+    static const httpd_uri_t index_html = { .uri = "/index.html", .method = HTTP_GET, .handler = rootGetHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_status = { .uri = "/api/status", .method = HTTP_GET, .handler = apiStatusHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_control = { .uri = "/api/control", .method = HTTP_POST, .handler = apiControlHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_schedule_get = { .uri = "/api/schedule", .method = HTTP_GET, .handler = apiScheduleGetHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_schedule_add = { .uri = "/api/schedule/add", .method = HTTP_POST, .handler = apiScheduleAddHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_schedule_update = { .uri = "/api/schedule/update", .method = HTTP_POST, .handler = apiScheduleUpdateHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_schedule_delete = { .uri = "/api/schedule/delete", .method = HTTP_POST, .handler = apiScheduleDeleteHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_schedule_toggle = { .uri = "/api/schedule/toggle", .method = HTTP_POST, .handler = apiScheduleToggleHandler, .user_ctx = NULL };
 
     esp_netif_ip_info_t ip_info;
     esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
@@ -44,6 +45,7 @@ void WebServer::start() {
         httpd_register_uri_handler(_mainServer, &api_control);
         httpd_register_uri_handler(_mainServer, &api_schedule_get);
         httpd_register_uri_handler(_mainServer, &api_schedule_add);
+        httpd_register_uri_handler(_mainServer, &api_schedule_update);
         httpd_register_uri_handler(_mainServer, &api_schedule_delete);
         httpd_register_uri_handler(_mainServer, &api_schedule_toggle);
     }
@@ -73,13 +75,15 @@ void WebServer::stop() {
 
 esp_err_t WebServer::rootGetHandler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, (const char *)index_html_start, index_html_end - index_html_start);
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    httpd_resp_send(req, (const char *)index_html_gz_start, index_html_gz_end - index_html_gz_start);
     return ESP_OK;
 }
 
 esp_err_t WebServer::apiStatusHandler(httpd_req_t *req) {
     std::string status = PureSpaService::getInstance().getStatusJson();
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_send(req, status.c_str(), HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
@@ -178,6 +182,51 @@ esp_err_t WebServer::apiScheduleAddHandler(httpd_req_t *req) {
     ev.targetTempValue = cJSON_GetObjectItem(json, "tempValue") ? cJSON_GetObjectItem(json, "tempValue")->valueint : 38;
 
     PureSpaService::getInstance().addEvent(ev);
+    
+    cJSON_Delete(json);
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiScheduleUpdateHandler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "POST /api/schedule/update");
+    char buf[512];
+    int ret = httpd_req_recv(req, buf, req->content_len);
+    if (ret <= 0) return ESP_FAIL;
+    buf[ret] = '\0';
+
+    cJSON *json = cJSON_Parse(buf);
+    if (json == NULL) return ESP_FAIL;
+
+    cJSON *id_item = cJSON_GetObjectItem(json, "id");
+    if (!cJSON_IsNumber(id_item)) {
+        cJSON_Delete(json);
+        return ESP_FAIL;
+    }
+    int id = id_item->valueint;
+
+    ScheduledEvent ev;
+    ev.enabled = cJSON_IsBool(cJSON_GetObjectItem(json, "enabled")) ? cJSON_IsTrue(cJSON_GetObjectItem(json, "enabled")) : true;
+    ev.recurring = cJSON_IsTrue(cJSON_GetObjectItem(json, "recurring"));
+    ev.dayOfWeekMask = cJSON_GetObjectItem(json, "dow") ? cJSON_GetObjectItem(json, "dow")->valueint : 0;
+    ev.year = cJSON_GetObjectItem(json, "year") ? cJSON_GetObjectItem(json, "year")->valueint : 0;
+    ev.month = cJSON_GetObjectItem(json, "month") ? cJSON_GetObjectItem(json, "month")->valueint : 0;
+    ev.day = cJSON_GetObjectItem(json, "day") ? cJSON_GetObjectItem(json, "day")->valueint : 0;
+    ev.hour = cJSON_GetObjectItem(json, "hour") ? cJSON_GetObjectItem(json, "hour")->valueint : 0;
+    ev.minute = cJSON_GetObjectItem(json, "minute") ? cJSON_GetObjectItem(json, "minute")->valueint : 0;
+    
+    ev.setPower = cJSON_IsBool(cJSON_GetObjectItem(json, "setPower")) ? cJSON_IsTrue(cJSON_GetObjectItem(json, "setPower")) : false;
+    ev.powerValue = cJSON_IsTrue(cJSON_GetObjectItem(json, "powerValue"));
+    ev.setFilter = cJSON_IsBool(cJSON_GetObjectItem(json, "setFilter")) ? cJSON_IsTrue(cJSON_GetObjectItem(json, "setFilter")) : false;
+    ev.filterValue = cJSON_IsTrue(cJSON_GetObjectItem(json, "filterValue"));
+    ev.setHeater = cJSON_IsBool(cJSON_GetObjectItem(json, "setHeater")) ? cJSON_IsTrue(cJSON_GetObjectItem(json, "setHeater")) : false;
+    ev.heaterValue = cJSON_IsTrue(cJSON_GetObjectItem(json, "heaterValue"));
+    ev.setBubble = cJSON_IsBool(cJSON_GetObjectItem(json, "setBubble")) ? cJSON_IsTrue(cJSON_GetObjectItem(json, "setBubble")) : false;
+    ev.bubbleValue = cJSON_IsTrue(cJSON_GetObjectItem(json, "bubbleValue"));
+    ev.setTargetTemp = cJSON_IsBool(cJSON_GetObjectItem(json, "setTemp")) ? cJSON_IsTrue(cJSON_GetObjectItem(json, "setTemp")) : false;
+    ev.targetTempValue = cJSON_GetObjectItem(json, "tempValue") ? cJSON_GetObjectItem(json, "tempValue")->valueint : 38;
+
+    PureSpaService::getInstance().updateEvent(id, ev);
     
     cJSON_Delete(json);
     httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);

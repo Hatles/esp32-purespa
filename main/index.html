@@ -1,222 +1,1602 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ESP32 PureSpa</title>
-    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <meta charset="UTF-8">
+    <title>PureSpa Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
-        .container {
+        :root {
+            --bg-color: #f2f2f7;
+            --card-bg: #ffffff;
+            --text-color: #000000;
+            --text-secondary: #8e8e93;
+            --border-color: #e5e5ea;
+            --tint-color: #007aff;
+            --switch-bg: #e9e9eb;
+            --switch-active: #34c759;
+            
+            --badge-online-bg: #e2f9e9;
+            --badge-online-text: #24b248;
+            --badge-offline-bg: #ffebeb;
+            --badge-offline-text: #ff3b30;
+            --badge-filter-bg: #e5f1ff;
+            --badge-filter-text: #007aff;
+            --badge-heater-bg: #fff2e6;
+            --badge-heater-text: #ff9500;
+            --badge-bubble-bg: #e6f9f6;
+            --badge-bubble-text: #00a699;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #000000;
+                --card-bg: #1c1c1e;
+                --text-color: #ffffff;
+                --text-secondary: #8e8e93;
+                --border-color: #38383a;
+                --tint-color: #0a84ff;
+                --switch-bg: #39393d;
+                --switch-active: #30d158;
+                
+                --badge-online-bg: #132d18;
+                --badge-online-text: #30d158;
+                --badge-offline-bg: #321315;
+                --badge-offline-text: #ff453a;
+                --badge-filter-bg: #092a4a;
+                --badge-filter-text: #409cff;
+                --badge-heater-bg: #3d2308;
+                --badge-heater-text: #ff9f0a;
+                --badge-bubble-bg: #0b332d;
+                --badge-bubble-text: #30d6c5;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 500px;
+            padding: 16px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* iOS Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding-top: 10px;
+            margin-bottom: 5px;
+        }
+
+        header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+
+        header .time-sub {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            display: block;
+        }
+
+        /* Hero Temp Card */
+        .hero-card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Dial Styling */
+        .dial-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin-bottom: 10px;
+        }
+
+        .temp-dial {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .dial-bg {
+            stroke: var(--switch-bg);
+        }
+
+        .dial-progress {
+            stroke: var(--tint-color);
+            transition: stroke-dashoffset 0.15s ease;
+        }
+
+        .dial-knob {
+            fill: #ffffff;
+            stroke: var(--tint-color);
+            stroke-width: 2.5px;
+            filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.15));
+            transition: cx 0.15s ease, cy 0.15s ease, opacity 0.2s;
+        }
+
+        .temp-dial.dragging .dial-progress,
+        .temp-dial.dragging .dial-knob {
+            transition: none !important;
+        }
+
+        .dial-text-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            padding-top: 15px; /* Offset since arc is open at the bottom */
+        }
+
+        .temp-display {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 4px;
+        }
+
+        .temp-num {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -1.5px;
+        }
+
+        .temp-unit {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            margin-left: 1px;
+        }
+
+        .target-temp-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .badges-row {
             display: flex;
             flex-wrap: wrap;
+            gap: 8px;
             justify-content: center;
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
         }
-        .card { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-            flex: 1 1 300px; /* Grow, shrink, base width */
-            max-width: 400px;
-            margin: 0;
+
+        .badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
         }
-        h1 { color: #333; width: 100%; }
-        .status-val { font-weight: bold; color: #007bff; }
-        .btn-group { display: flex; justify-content: space-around; flex-wrap: wrap; }
-        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; color: white; transition: opacity 0.3s; }
-        button:disabled { background-color: #ccc !important; cursor: not-allowed; opacity: 0.6; }
-        .btn-on { background-color: #28a745; }
-        .btn-off { background-color: #dc3545; }
-        .temp-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; }
-        input[type=number] { padding: 8px; width: 60px; text-align: center; }
-        input:disabled { background-color: #eee; }
-        .config-box { font-size: 0.8em; color: #666; margin-top: 20px; width: 100%; }
+
+        .badge-online { background-color: var(--badge-online-bg); color: var(--badge-online-text); }
+        .badge-offline { background-color: var(--badge-offline-bg); color: var(--badge-offline-text); }
+        .badge-filter { background-color: var(--badge-filter-bg); color: var(--badge-filter-text); }
+        .badge-heater { background-color: var(--badge-heater-bg); color: var(--badge-heater-text); }
+        .badge-bubble { background-color: var(--badge-bubble-bg); color: var(--badge-bubble-text); }
+
+        /* Grouped Sections */
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-left: 10px;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        .section-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .section-header-row .section-title {
+            margin-bottom: 0;
+        }
+
+        .link-btn {
+            background: none;
+            border: none;
+            color: var(--tint-color);
+            font-size: 15px;
+            font-weight: 500;
+            padding: 0 10px;
+            cursor: pointer;
+        }
+
+        .link-btn:active {
+            opacity: 0.6;
+        }
+
+        .group-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .row-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            min-height: 48px;
+            border-bottom: 1px solid var(--border-color);
+            transition: opacity 0.2s;
+        }
+
+        .row-item:last-child {
+            border-bottom: none;
+        }
+
+        .row-item.disabled {
+            opacity: 0.4;
+        }
+
+        .row-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .svg-icon {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-power { color: #ff3b30; }
+        .icon-filter { color: #007aff; }
+        .icon-heater { color: #ff9500; }
+        .icon-bubble { color: #00a699; }
+
+        /* iOS Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 51px;
+            height: 31px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--switch-bg);
+            transition: .25s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 27px;
+            width: 27px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .25s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 50%;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        input:checked + .slider {
+            background-color: var(--switch-active);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        input:disabled + .slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Stepper Control */
+        .stepper {
+            display: flex;
+            align-items: center;
+            background-color: var(--switch-bg);
+            border-radius: 8px;
+            padding: 2px;
+            gap: 12px;
+        }
+
+        .stepper-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background-color: var(--card-bg);
+            border: none;
+            color: var(--tint-color);
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            transition: background-color 0.2s;
+        }
+
+        .stepper-btn:active {
+            background-color: var(--switch-bg);
+            opacity: 0.7;
+        }
+
+        .stepper-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .stepper-val {
+            font-size: 16px;
+            font-weight: 600;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        /* Schedule Row items */
+        .schedule-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .schedule-item:last-child {
+            border-bottom: none;
+        }
+
+        .schedule-item.item-disabled {
+            opacity: 0.5;
+        }
+
+        .sched-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+            flex-grow: 1;
+            padding: 4px 0;
+            border-radius: 6px;
+        }
+
+        .sched-left:active {
+            opacity: 0.5;
+        }
+
+        .sched-time-row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .sched-time {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .sched-days {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .sched-actions-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .mini-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background-color: var(--switch-bg);
+            color: var(--text-color);
+        }
+
+        .sched-right {
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+        }
+
+        /* Bottom Sheet Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background-color: var(--bg-color);
+            width: 100%;
+            max-width: 500px;
+            border-radius: 12px 12px 0 0;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.25, 1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.15);
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            background-color: var(--card-bg);
+            padding: 14px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+
+        .modal-hdr-title {
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        .modal-hdr-btn {
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .cancel-btn { color: var(--tint-color); }
+        .done-btn { color: var(--tint-color); font-weight: 600; }
+
+        .modal-body {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-bottom: 40px;
+        }
+
+        /* Modal Select & Inputs */
+        .ios-select {
+            appearance: none;
+            background: transparent;
+            border: none;
+            font-size: 16px;
+            color: var(--tint-color);
+            font-weight: 500;
+            padding-right: 12px;
+            text-align: right;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .ios-input {
+            background: transparent;
+            border: none;
+            font-size: 16px;
+            color: var(--text-color);
+            text-align: right;
+            outline: none;
+            font-family: inherit;
+        }
+
+        /* Circular Day Selector */
+        .day-selector {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 16px;
+            gap: 6px;
+        }
+
+        .day-btn {
+            flex: 1;
+            aspect-ratio: 1;
+            max-width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background-color: var(--switch-bg);
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .day-btn.active {
+            background-color: var(--tint-color);
+            color: white;
+        }
+
+        /* Checklist Action Rows */
+        .action-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border-color);
+            min-height: 48px;
+        }
+
+        .action-row:last-child {
+            border-bottom: none;
+        }
+
+        .action-label-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            user-select: none;
+        }
+
+        .action-checkbox {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            background-color: var(--card-bg);
+        }
+
+        .action-checkbox svg {
+            display: none;
+            width: 12px;
+            height: 12px;
+            fill: none;
+            stroke: white;
+            stroke-width: 3px;
+        }
+
+        input[type="checkbox"]:checked + .action-checkbox {
+            background-color: var(--tint-color);
+            border-color: var(--tint-color);
+        }
+
+        input[type="checkbox"]:checked + .action-checkbox svg {
+            display: block;
+        }
+
+        .action-controls {
+            opacity: 0.25;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .action-row.active .action-controls {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .ios-select-small {
+            background-color: var(--switch-bg);
+            border: none;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-color);
+            outline: none;
+        }
+
+        .stepper-compact {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: var(--switch-bg);
+            border-radius: 6px;
+            padding: 2px;
+        }
+
+        .stepper-btn-small {
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            background-color: var(--card-bg);
+            border: none;
+            color: var(--tint-color);
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .stepper-btn-small:active {
+            opacity: 0.6;
+        }
+
+        .stepper-val-small {
+            font-size: 14px;
+            font-weight: 600;
+            min-width: 42px;
+            text-align: center;
+        }
+
+        /* iOS Destructive/Danger Button */
+        .ios-danger-btn {
+            width: 100%;
+            background-color: var(--card-bg);
+            color: #ff3b30;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            transition: background-color 0.2s;
+        }
+
+        .ios-danger-btn:active {
+            background-color: rgba(255, 59, 48, 0.1);
+        }
+
+        /* Desktop specific adjustments */
+        @media (min-width: 501px) {
+            body {
+                background-color: #e5e5ea;
+            }
+            @media (prefers-color-scheme: dark) {
+                body {
+                    background-color: #121212;
+                }
+            }
+            .app-container {
+                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+                background-color: var(--bg-color);
+                margin: 20px 0;
+                border-radius: 20px;
+                min-height: calc(100vh - 40px);
+            }
+            .modal-overlay {
+                align-items: center;
+            }
+            .modal-content {
+                border-radius: 16px;
+                width: 400px;
+                max-height: 80vh;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>ESP32 PureSpa Controller</h1>
-    
-    <div class="container">
-        <div class='card'>
-            <h3>Status</h3>
-            <!--<p>Update Method: <span id='update-method' class='status-val'>...</span></p>-->
-            <p>Current Time: <span id='current-time' class='status-val'>...</span></p>
-            <p>Online: <span id='online' class='status-val'>...</span></p>
-            <p>Actual Temp: <span id='act-temp' class='status-val'>--</span> &deg;C</p>
-            <p>Target Temp: <span id='set-temp' class='status-val'>--</span> &deg;C</p>
-        </div>
-
-        <div class='card'>
-            <h3>Schedule</h3>
-            <div id="schedule-list" style="text-align: left; margin-bottom: 15px;">
-                Loading...
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div>
+                <h1 data-i18n="title">PureSpa</h1>
+                <span id="current-time" class="time-sub" data-i18n="loading">Loading...</span>
             </div>
-            <hr>
-            <h4>Add Event</h4>
-            <div style="text-align: left; font-size: 0.9em;">
-                <div style="margin-bottom: 5px;">
-                    Type: 
-                    <select id="sched-type" onchange="toggleSchedType()">
-                        <option value="recurring">Recurring</option>
-                        <option value="once">Once</option>
-                    </select>
+            <div id="online-badge" class="badge badge-offline">Offline</div>
+        </header>
+
+        <!-- Temperature Display with SVG Dial -->
+        <div class="hero-card">
+            <div class="dial-container">
+                <svg class="temp-dial" id="temp-dial-svg" viewBox="0 0 200 200">
+                    <!-- Background Arc -->
+                    <path class="dial-bg" d="M 50.5,149.5 A 70,70 0 1,1 149.5,149.5" fill="none" stroke-width="10" stroke-linecap="round" />
+                    <!-- Progress Arc -->
+                    <path class="dial-progress" id="dial-progress-path" d="M 50.5,149.5 A 70,70 0 1,1 149.5,149.5" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="330" stroke-dashoffset="330" />
+                    <!-- Knob -->
+                    <circle class="dial-knob" id="dial-knob" cx="50.5" cy="149.5" r="11" />
+                </svg>
+                <div class="dial-text-overlay">
+                    <div class="temp-display">
+                        <span id="act-temp" class="temp-num">--</span>
+                        <span class="temp-unit">°C</span>
+                    </div>
+                    <div class="target-temp-label">
+                        <span data-i18n="target">Target:</span> <span id="set-temp">--</span>°C
+                    </div>
                 </div>
-                <div id="div-recurring">
-                    Days: 
-                    <label><input type="checkbox" class="sched-dow" value="1">M</label>
-                    <label><input type="checkbox" class="sched-dow" value="2">T</label>
-                    <label><input type="checkbox" class="sched-dow" value="3">W</label>
-                    <label><input type="checkbox" class="sched-dow" value="4">T</label>
-                    <label><input type="checkbox" class="sched-dow" value="5">F</label>
-                    <label><input type="checkbox" class="sched-dow" value="6">S</label>
-                    <label><input type="checkbox" class="sched-dow" value="0">S</label>
-                </div>
-                <div id="div-once" style="display: none;">
-                    Date: <input type="date" id="sched-date">
-                </div>
-                <div style="margin: 5px 0;">
-                    Time: <input type="time" id="sched-time">
-                </div>
-                <div style="margin: 5px 0; border-top: 1px solid #eee; pt: 5px;">
-                    Actions:
-                    <div><label><input type="checkbox" id="act-power-en"> Power:</label> <select id="act-power-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                    <div><label><input type="checkbox" id="act-filter-en"> Filter:</label> <select id="act-filter-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                    <div><label><input type="checkbox" id="act-heater-en"> Heater:</label> <select id="act-heater-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                    <div><label><input type="checkbox" id="act-bubble-en"> Bubble:</label> <select id="act-bubble-val"><option value="true">ON</option><option value="false">OFF</option></select></div>
-                    <div><label><input type="checkbox" id="act-temp-en"> Temp:</label> <input type="number" id="act-temp-val" min="20" max="40" value="38" style="width: 50px;"></div>
-                </div>
-                <button id="btn-add-event" class="btn-on" onclick="addEvent()" style="width: 100%; margin-top: 10px;">Add Scheduled Event</button>
+            </div>
+            <div class="badges-row" id="active-badges">
+                <!-- Badges will be updated dynamically -->
             </div>
         </div>
 
-        <div class='card'>
-            <h3>Controls</h3>
-            <div class="btn-group">
-                <button id="btn-power" onclick="toggle('power')">Power</button>
-                <button id="btn-filter" onclick="toggle('filter')">Filter</button>
-                <button id="btn-heater" onclick="toggle('heater')">Heater</button>
-                <button id="btn-bubble" onclick="toggle('bubble')">Bubble</button>
-            </div>
-            
-            <div class="temp-ctrl">
-                <label>Set Temp:</label>
-                <input type="number" id="target-temp-input" min="20" max="40">
-                <button id="btn-set-temp" class="btn-on" onclick="setTemp()">Set</button>
+        <!-- Controls Section -->
+        <div>
+            <div class="section-title" data-i18n="quickControls">Quick Controls</div>
+            <div class="group-card">
+                <!-- Power Row -->
+                <div class="row-item" id="row-power">
+                    <div class="row-label">
+                        <span class="svg-icon icon-power">
+                            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M16.56,5.44L15.11,6.89C16.84,7.94 18,9.83 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12C6,9.83 7.16,7.94 8.88,6.88L7.44,5.44C5.18,7.09 3.67,9.72 3.67,12.75A8.33,8.33 0 0,0 12,21.08A8.33,8.33 0 0,0 20.33,12.75C20.33,9.72 18.82,7.09 16.56,5.44M11,3H13V12H11V3Z"/></svg>
+                        </span>
+                        <span data-i18n="power">Power</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-power" onchange="handleToggle('power', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <!-- Filter Row -->
+                <div class="row-item" id="row-filter">
+                    <div class="row-label">
+                        <span class="svg-icon icon-filter">
+                            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12,6V9L16,5L12,1V4A8,8 0 0,0 4,12C4,13.5 4.4,14.9 5.1,16.1L6.5,14.7C6.2,13.9 6,13 6,12A6,6 0 0,1 12,6M18.9,7.9L17.5,9.3C17.8,10.1 18,11 18,12A6,6 0 0,1 12,18V15L8,19L12,23V20A8,8 0 0,0 20,12C20,10.5 19.6,9.1 18.9,7.9Z"/></svg>
+                        </span>
+                        <span data-i18n="filter">Filter</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-filter" onchange="handleToggle('filter', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <!-- Heater Row -->
+                <div class="row-item" id="row-heater">
+                    <div class="row-label">
+                        <span class="svg-icon icon-heater">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 19c1.5-3 1.5-6 0-9s1.5-6 0-9M12 19c1.5-3 1.5-6 0-9s1.5-6 0-9M18 19c1.5-3 1.5-6 0-9s1.5-6 0-9"/></svg>
+                        </span>
+                        <span data-i18n="heater">Heater</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-heater" onchange="handleToggle('heater', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <!-- Bubble Row -->
+                <div class="row-item" id="row-bubble">
+                    <div class="row-label">
+                        <span class="svg-icon icon-bubble">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="2.5"/><circle cx="12" cy="14" r="3.5"/><circle cx="17" cy="18" r="2"/><circle cx="8" cy="8" r="2" stroke-width="1.8"/><circle cx="16" cy="7" r="3"/></svg>
+                        </span>
+                        <span data-i18n="bubbles">Bubbles</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-bubble" onchange="handleToggle('bubble', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
             </div>
         </div>
-    </div> <!-- End Container -->
 
-    <!--
-    <div class="config-box">
-        <label><input type="checkbox" id="use-sse" onchange="location.reload()"> Use SSE (instead of Polling)</label>
+        <!-- Temperature Stepper Row -->
+        <div>
+            <div class="section-title" data-i18n="tempSettings">Temperature Settings</div>
+            <div class="group-card">
+                <div class="row-item" id="row-stepper">
+                    <span class="row-label" data-i18n="targetTemp">Target Temperature</span>
+                    <div class="stepper">
+                        <button id="btn-temp-dec" class="stepper-btn" onclick="adjustTemp(-1)">−</button>
+                        <span id="target-temp-display" class="stepper-val">--°C</span>
+                        <button id="btn-temp-inc" class="stepper-btn" onclick="adjustTemp(1)">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule Section -->
+        <div>
+            <div class="section-header-row">
+                <div class="section-title" data-i18n="schedule">Schedule</div>
+                <button class="link-btn" onclick="openScheduleModal()" data-i18n="addEventBtn">Add Event</button>
+            </div>
+            <div class="group-card" id="schedule-list">
+                <div style="padding: 20px; text-align: center; color: var(--text-secondary);" data-i18n="loading">Loading...</div>
+            </div>
+        </div>
     </div>
-    -->
+
+    <!-- Scheduling Bottom Sheet Modal -->
+    <div class="modal-overlay" id="schedule-modal" onclick="closeScheduleModalOnOverlay(event)">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-hdr-btn cancel-btn" onclick="closeScheduleModal()" data-i18n="cancel">Cancel</button>
+                <span class="modal-hdr-title" id="modal-title" data-i18n="modalAddTitle">Add Schedule</span>
+                <button class="modal-hdr-btn done-btn" id="modal-submit-btn" onclick="addEvent()" data-i18n="addBtn">Add</button>
+            </div>
+            <div class="modal-body">
+                <!-- Group 1: Type selection -->
+                <div class="group-card">
+                    <div class="row-item">
+                        <span class="row-label" data-i18n="type">Type</span>
+                        <select id="sched-type" onchange="toggleSchedType()" class="ios-select">
+                            <option value="recurring">Recurring</option>
+                            <option value="once">One-Time</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Group 2: Time / Date inputs -->
+                <div class="group-card">
+                    <div class="row-item">
+                        <span class="row-label" data-i18n="time">Time</span>
+                        <input type="time" id="sched-time" class="ios-input">
+                    </div>
+                    <div class="row-item" id="div-once" style="display: none;">
+                        <span class="row-label" data-i18n="date">Date</span>
+                        <input type="date" id="sched-date" class="ios-input">
+                    </div>
+                    <div class="row-item-custom" id="div-recurring" style="display: block; border-top: 1px solid var(--border-color);">
+                        <div style="font-size: 13px; color: var(--text-secondary); padding: 12px 16px 4px; font-weight: 500; text-transform: uppercase;" data-i18n="repeatDays">Repeat Days</div>
+                        <div class="day-selector">
+                            <button class="day-btn" data-day="1" onclick="toggleDay(this)">M</button>
+                            <button class="day-btn" data-day="2" onclick="toggleDay(this)">T</button>
+                            <button class="day-btn" data-day="3" onclick="toggleDay(this)">W</button>
+                            <button class="day-btn" data-day="4" onclick="toggleDay(this)">T</button>
+                            <button class="day-btn" data-day="5" onclick="toggleDay(this)">F</button>
+                            <button class="day-btn" data-day="6" onclick="toggleDay(this)">S</button>
+                            <button class="day-btn" data-day="0" onclick="toggleDay(this)">S</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 3: Checklist Action Rows -->
+                <div class="section-title" style="margin-top: 10px;" data-i18n="actionsToPerform">Actions to Perform</div>
+                <div class="group-card">
+                    <!-- Power Row -->
+                    <div class="action-row" id="row-action-power">
+                        <label class="action-label-container">
+                            <input type="checkbox" id="act-power-en" onchange="toggleActionRow('power', this.checked)" style="display: none;">
+                            <span class="action-checkbox">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                            </span>
+                            <span data-i18n="power">Power</span>
+                        </label>
+                        <div class="action-controls">
+                            <select id="act-power-val" class="ios-select-small">
+                                <option value="true">ON</option>
+                                <option value="false">OFF</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Filter Row -->
+                    <div class="action-row" id="row-action-filter">
+                        <label class="action-label-container">
+                            <input type="checkbox" id="act-filter-en" onchange="toggleActionRow('filter', this.checked)" style="display: none;">
+                            <span class="action-checkbox">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                            </span>
+                            <span data-i18n="filter">Filter</span>
+                        </label>
+                        <div class="action-controls">
+                            <select id="act-filter-val" class="ios-select-small">
+                                <option value="true">ON</option>
+                                <option value="false">OFF</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Heater Row -->
+                    <div class="action-row" id="row-action-heater">
+                        <label class="action-label-container">
+                            <input type="checkbox" id="act-heater-en" onchange="toggleActionRow('heater', this.checked)" style="display: none;">
+                            <span class="action-checkbox">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                            </span>
+                            <span data-i18n="heater">Heater</span>
+                        </label>
+                        <div class="action-controls">
+                            <select id="act-heater-val" class="ios-select-small">
+                                <option value="true">ON</option>
+                                <option value="false">OFF</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Bubble Row -->
+                    <div class="action-row" id="row-action-bubble">
+                        <label class="action-label-container">
+                            <input type="checkbox" id="act-bubble-en" onchange="toggleActionRow('bubble', this.checked)" style="display: none;">
+                            <span class="action-checkbox">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                            </span>
+                            <span data-i18n="bubbles">Bubbles</span>
+                        </label>
+                        <div class="action-controls">
+                            <select id="act-bubble-val" class="ios-select-small">
+                                <option value="true">ON</option>
+                                <option value="false">OFF</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Target Temp Row -->
+                    <div class="action-row" id="row-action-temp">
+                        <label class="action-label-container">
+                            <input type="checkbox" id="act-temp-en" onchange="toggleActionRow('temp', this.checked)" style="display: none;">
+                            <span class="action-checkbox">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                            </span>
+                            <span data-i18n="targetTemp">Target Temp</span>
+                        </label>
+                        <div class="action-controls stepper-compact">
+                            <button type="button" class="stepper-btn-small" onclick="adjustFormTemp(-1)">−</button>
+                            <span id="form-temp-display" class="stepper-val-small">38°C</span>
+                            <input type="hidden" id="act-temp-val" value="38">
+                            <button type="button" class="stepper-btn-small" onclick="adjustFormTemp(1)">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Destructive Delete Button container -->
+                <div id="modal-delete-container" style="display: none; margin-top: 10px;">
+                    <button type="button" class="ios-danger-btn" onclick="deleteEventFromModal()" data-i18n="deleteEventBtn">Delete Event</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // CONFIGURATION
-        const useSSE = false;
-        /*const useSSE = localStorage.getItem('useSSE') === 'true';
-        document.getElementById('use-sse').checked = useSSE;
-        document.getElementById('update-method').innerText = useSSE ? 'SSE' : 'Polling (2s)';*/
+        // I18N Translation Dictionary
+        const i18n = {
+            en: {
+                title: "PureSpa Controller",
+                loading: "Loading...",
+                online: "Online",
+                offline: "Offline",
+                target: "Target:",
+                heating: "Heating",
+                filtering: "Filtering",
+                bubbles: "Bubbles",
+                standby: "Standby",
+                poweredOff: "Powered Off",
+                disconnected: "Disconnected",
+                quickControls: "Quick Controls",
+                power: "Power",
+                filter: "Filter",
+                heater: "Heater",
+                tempSettings: "Temperature Settings",
+                targetTemp: "Target Temperature",
+                schedule: "Schedule",
+                addEventBtn: "Add Event",
+                noEvents: "No Events Scheduled",
+                modalAddTitle: "Add Schedule",
+                modalEditTitle: "Edit Schedule",
+                type: "Type",
+                recurring: "Recurring",
+                once: "One-Time",
+                time: "Time",
+                date: "Date",
+                repeatDays: "Repeat Days",
+                actionsToPerform: "Actions to Perform",
+                cancel: "Cancel",
+                addBtn: "Add",
+                saveBtn: "Save",
+                everyDay: "Every Day",
+                every: "Every ",
+                deleteConfirm: "Delete this event?",
+                deleteEventBtn: "Delete Event",
+                powerBadge: "Power",
+                filterBadge: "Filter",
+                heaterBadge: "Heater",
+                bubblesBadge: "Bubbles",
+                tempBadge: "Temp",
+                daysAbbr: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+                daysFull: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                alertTime: "Please set a time",
+                alertDays: "Please select at least one day",
+                alertDate: "Please select a date"
+            },
+            fr: {
+                title: "Contrôleur PureSpa",
+                loading: "Chargement...",
+                online: "En ligne",
+                offline: "Hors ligne",
+                target: "Cible :",
+                heating: "Chauffage",
+                filtering: "Filtration",
+                bubbles: "Bulles",
+                standby: "Veille",
+                poweredOff: "Éteint",
+                disconnected: "Déconnecté",
+                quickControls: "Contrôles Rapides",
+                power: "Alimentation",
+                filter: "Filtration",
+                heater: "Chauffage",
+                tempSettings: "Réglages de Température",
+                targetTemp: "Température Cible",
+                schedule: "Programmation",
+                addEventBtn: "Ajouter",
+                noEvents: "Aucun événement programmé",
+                modalAddTitle: "Ajouter un événement",
+                modalEditTitle: "Modifier l'événement",
+                type: "Type",
+                recurring: "Récurrent",
+                once: "Une fois",
+                time: "Heure",
+                date: "Date",
+                repeatDays: "Répéter les jours",
+                actionsToPerform: "Actions à exécuter",
+                cancel: "Annuler",
+                addBtn: "Ajouter",
+                saveBtn: "Enregistrer",
+                everyDay: "Tous les jours",
+                every: "Chaque ",
+                deleteConfirm: "Supprimer cet événement ?",
+                deleteEventBtn: "Supprimer l'événement",
+                powerBadge: "Alim",
+                filterBadge: "Filtre",
+                heaterBadge: "Chauffage",
+                bubblesBadge: "Bulles",
+                tempBadge: "Temp",
+                daysAbbr: ['D', 'L', 'M', 'M', 'J', 'V', 'S'],
+                daysFull: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+                alertTime: "Veuillez choisir une heure",
+                alertDays: "Veuillez choisir au moins un jour",
+                alertDate: "Veuillez choisir une date"
+            }
+        };
 
-        // UI Logic
+        // Determine browser language preference (fr vs en)
+        const userLang = (navigator.language || navigator.userLanguage || 'en').startsWith('fr') ? 'fr' : 'en';
+        const t = i18n[userLang];
+
+        // Apply translations
+        function initTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) {
+                    el.innerText = t[key];
+                }
+            });
+            const typeSelect = document.getElementById('sched-type');
+            if (typeSelect) {
+                typeSelect.options[0].text = t.recurring;
+                typeSelect.options[1].text = t.once;
+            }
+            
+            // Localize day-btn letters in bottom sheet
+            const dayBtns = document.querySelectorAll('.day-btn');
+            dayBtns.forEach(btn => {
+                const dayIndex = parseInt(btn.dataset.day);
+                btn.innerText = t.daysAbbr[dayIndex];
+            });
+        }
+
+        // Global State variables
+        let tempDebounceTimeout = null;
+        let loadedEvents = [];
+        let editingEventId = null;
+
+        // Dial configurations
+        const DIAL_CENTER = 100;
+        const DIAL_RADIUS = 70;
+        const MIN_TEMP = 20;
+        const MAX_TEMP = 40;
+        const ARC_LENGTH = 330; // ~3/4 of 2 * pi * 70
+        let isDraggingDial = false;
+
+        function updateDial(temp) {
+            if (temp === -99 || isNaN(temp)) return;
+            const clamped = Math.max(MIN_TEMP, Math.min(MAX_TEMP, temp));
+            const percent = (clamped - MIN_TEMP) / (MAX_TEMP - MIN_TEMP);
+            
+            const offset = ARC_LENGTH * (1 - percent);
+            const progressPath = document.getElementById('dial-progress-path');
+            if (progressPath) {
+                progressPath.style.strokeDashoffset = offset;
+            }
+            
+            // Calculate angle: clockwise from 135deg (bottom-left) to 405deg (bottom-right)
+            const angleDeg = 135 + (percent * 270);
+            const angleRad = angleDeg * Math.PI / 180;
+            
+            const knobX = DIAL_CENTER + DIAL_RADIUS * Math.cos(angleRad);
+            const knobY = DIAL_CENTER + DIAL_RADIUS * Math.sin(angleRad);
+            
+            const knob = document.getElementById('dial-knob');
+            if (knob) {
+                knob.setAttribute('cx', knobX);
+                knob.setAttribute('cy', knobY);
+            }
+        }
+
+        // UI Update Logic
         function updateUI(data) {
             const isOnline = data.online;
             const isPowerOn = isOnline ? data.power : false;
 
-            document.getElementById('online').innerText = isOnline ? 'Yes' : 'No';
-            document.getElementById('act-temp').innerText = (isOnline && data.act_temp != -99) ? data.act_temp : '--';
-            document.getElementById('set-temp').innerText = (isPowerOn && data.set_temp != -99) ? data.set_temp : '--';
+            // Header Online Badge
+            const badge = document.getElementById('online-badge');
+            if (isOnline) {
+                badge.className = 'badge badge-online';
+                badge.innerText = t.online;
+            } else {
+                badge.className = 'badge badge-offline';
+                badge.innerText = t.offline;
+            }
+
+            // Time Display
             document.getElementById('current-time').innerText = data.time || '...';
-            
-            // Power button is only enabled if the controller is ONLINE
-            updateButton('btn-power', isPowerOn, !isOnline);
-            
-            // Other buttons are only enabled if Online AND Power is ON
-            updateButton('btn-filter', isPowerOn ? data.filter : false, !isPowerOn);
-            updateButton('btn-heater', isPowerOn ? data.heater : false, !isPowerOn);
-            updateButton('btn-bubble', isPowerOn ? data.bubble : false, !isPowerOn);
-            
-            // Temperature controls
-            document.getElementById('target-temp-input').disabled = !isPowerOn;
-            document.getElementById('btn-set-temp').disabled = !isPowerOn;
-            
-            if (isPowerOn && data.set_temp != -99 && document.getElementById('target-temp-input').value === "") {
-                document.getElementById('target-temp-input').value = data.set_temp;
+
+            // Actual / Target Temperature Display
+            document.getElementById('act-temp').innerText = (isOnline && data.act_temp !== -99) ? data.act_temp : '--';
+            document.getElementById('set-temp').innerText = (isPowerOn && data.set_temp !== -99) ? data.set_temp : '--';
+
+            // Target Stepper / Dial sync (only if not currently adjusting)
+            const targetTempDisp = document.getElementById('target-temp-display');
+            const dialSvg = document.getElementById('temp-dial-svg');
+            const knob = document.getElementById('dial-knob');
+
+            if (isPowerOn && data.set_temp !== -99) {
+                if (!tempDebounceTimeout && !isDraggingDial) {
+                    targetTempDisp.innerText = data.set_temp + '°C';
+                    updateDial(data.set_temp);
+                }
+                dialSvg.style.cursor = 'pointer';
+                if (knob) {
+                    knob.style.cursor = 'grab';
+                    knob.style.opacity = '1';
+                }
+            } else {
+                targetTempDisp.innerText = '--°C';
+                updateDial(20); // Reset dial to minimum
+                dialSvg.style.cursor = 'not-allowed';
+                if (knob) {
+                    knob.style.cursor = 'not-allowed';
+                    knob.style.opacity = '0.3';
+                }
+            }
+
+            // Sync Toggle Switch values
+            document.getElementById('switch-power').checked = isPowerOn;
+            document.getElementById('switch-filter').checked = isPowerOn ? data.filter : false;
+            document.getElementById('switch-heater').checked = isPowerOn ? data.heater : false;
+            document.getElementById('switch-bubble').checked = isPowerOn ? data.bubble : false;
+
+            // Enable / Disable inputs and wrapper row styling
+            document.getElementById('switch-power').disabled = !isOnline;
+            toggleRowDisabled('row-power', !isOnline);
+
+            const disableSubcontrols = !isPowerOn;
+            document.getElementById('switch-filter').disabled = disableSubcontrols;
+            toggleRowDisabled('row-filter', disableSubcontrols);
+
+            document.getElementById('switch-heater').disabled = disableSubcontrols;
+            toggleRowDisabled('row-heater', disableSubcontrols);
+
+            document.getElementById('switch-bubble').disabled = disableSubcontrols;
+            toggleRowDisabled('row-bubble', disableSubcontrols);
+
+            document.getElementById('btn-temp-dec').disabled = disableSubcontrols;
+            document.getElementById('btn-temp-inc').disabled = disableSubcontrols;
+            toggleRowDisabled('row-stepper', disableSubcontrols);
+
+            // Dynamic Active Hero Badges
+            const badgeContainer = document.getElementById('active-badges');
+            let badgesHtml = '';
+            if (isOnline) {
+                if (isPowerOn) {
+                    if (data.heater) badgesHtml += `<span class="badge badge-heater">${t.heating}</span>`;
+                    if (data.filter) badgesHtml += `<span class="badge badge-filter">${t.filtering}</span>`;
+                    if (data.bubble) badgesHtml += `<span class="badge badge-bubble">${t.bubbles}</span>`;
+                    if (badgesHtml === '') badgesHtml += `<span class="badge badge-online">${t.standby}</span>`;
+                } else {
+                    badgesHtml += `<span class="badge badge-online">${t.poweredOff}</span>`;
+                }
+            } else {
+                badgesHtml += `<span class="badge badge-offline">${t.disconnected}</span>`;
+            }
+            badgeContainer.innerHTML = badgesHtml;
+        }
+
+        function toggleRowDisabled(id, isDisabled) {
+            const row = document.getElementById(id);
+            if (isDisabled) {
+                row.classList.add('disabled');
+            } else {
+                row.classList.remove('disabled');
             }
         }
 
-        // Schedule Logic
+        // Stepper Target Temp Controls with Debouncing to protect ESP32
+        function adjustTemp(amount) {
+            const targetTempDisp = document.getElementById('target-temp-display');
+            let currentVal = parseInt(targetTempDisp.innerText);
+            if (isNaN(currentVal)) currentVal = 38;
+            const newVal = Math.max(20, Math.min(40, currentVal + amount));
+            targetTempDisp.innerText = newVal + '°C';
+            
+            document.getElementById('set-temp').innerText = newVal;
+            updateDial(newVal);
+            
+            clearTimeout(tempDebounceTimeout);
+            tempDebounceTimeout = setTimeout(() => {
+                toggle('temp', newVal);
+                tempDebounceTimeout = null;
+            }, 600);
+        }
+
+        // Toggle command wrapper
+        function handleToggle(cmd, isChecked) {
+            toggle(cmd, isChecked);
+        }
+
+        // Send API commands
+        function toggle(cmd, value) {
+            fetch('/api/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cmd: cmd, value: value })
+            }).catch(e => console.error('Control error:', e));
+        }
+
+        // Dial dragging logic
+        const dialSvg = document.getElementById('temp-dial-svg');
+
+        function handleDialMove(clientX, clientY) {
+            const powerSwitch = document.getElementById('switch-power');
+            if (!powerSwitch || !powerSwitch.checked || powerSwitch.disabled) return;
+
+            const rect = dialSvg.getBoundingClientRect();
+            const svgCenterX = rect.left + rect.width / 2;
+            const svgCenterY = rect.top + rect.height / 2;
+            
+            const dx = clientX - svgCenterX;
+            const dy = clientY - svgCenterY;
+            
+            let angleRad = Math.atan2(dy, dx);
+            let angleDeg = angleRad * 180 / Math.PI;
+            
+            if (angleDeg < 0) {
+                angleDeg += 360;
+            }
+            
+            let percent = 0;
+            if (angleDeg >= 135 && angleDeg <= 360) {
+                percent = (angleDeg - 135) / 270;
+            } else if (angleDeg >= 0 && angleDeg <= 45) {
+                percent = (angleDeg + 225) / 270;
+            } else {
+                if (angleDeg > 90) {
+                    percent = 0;
+                } else {
+                    percent = 1;
+                }
+            }
+            
+            const temp = Math.round(MIN_TEMP + percent * (MAX_TEMP - MIN_TEMP));
+            const targetVal = Math.max(MIN_TEMP, Math.min(MAX_TEMP, temp));
+            
+            document.getElementById('set-temp').innerText = targetVal;
+            document.getElementById('target-temp-display').innerText = targetVal + '°C';
+            updateDial(targetVal);
+            
+            clearTimeout(tempDebounceTimeout);
+            tempDebounceTimeout = setTimeout(() => {
+                toggle('temp', targetVal);
+                tempDebounceTimeout = null;
+            }, 600);
+        }
+
+        dialSvg.addEventListener('mousedown', (e) => {
+            const powerSwitch = document.getElementById('switch-power');
+            if (!powerSwitch || !powerSwitch.checked || powerSwitch.disabled) return;
+            
+            isDraggingDial = true;
+            dialSvg.classList.add('dragging');
+            handleDialMove(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingDial) return;
+            handleDialMove(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDraggingDial) {
+                isDraggingDial = false;
+                dialSvg.classList.remove('dragging');
+            }
+        });
+
+        dialSvg.addEventListener('touchstart', (e) => {
+            const powerSwitch = document.getElementById('switch-power');
+            if (!powerSwitch || !powerSwitch.checked || powerSwitch.disabled) return;
+            
+            isDraggingDial = true;
+            dialSvg.classList.add('dragging');
+            handleDialMove(e.touches[0].clientX, e.touches[0].clientY);
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isDraggingDial) return;
+            handleDialMove(e.touches[0].clientX, e.touches[0].clientY);
+        });
+
+        window.addEventListener('touchend', () => {
+            if (isDraggingDial) {
+                isDraggingDial = false;
+                dialSvg.classList.remove('dragging');
+            }
+        });
+
+        // Schedule Actions Toggle
+        function toggleActionRow(action, isChecked) {
+            const row = document.getElementById(`row-action-${action}`);
+            if (isChecked) {
+                row.classList.add('active');
+            } else {
+                row.classList.remove('active');
+            }
+        }
+
+        // Stepper Temp adjustments in modal
+        function adjustFormTemp(amount) {
+            const display = document.getElementById('form-temp-display');
+            const hidden = document.getElementById('act-temp-val');
+            let val = parseInt(hidden.value);
+            if (isNaN(val)) val = 38;
+            val = Math.max(20, Math.min(40, val + amount));
+            hidden.value = val;
+            display.innerText = val + '°C';
+        }
+
+        // Schedule Modal functions
+        function openScheduleModal() {
+            editingEventId = null;
+
+            // Reset modal fields
+            document.getElementById('sched-time').value = "";
+            document.getElementById('sched-date').value = "";
+            document.getElementById('sched-type').value = "recurring";
+            toggleSchedType();
+            
+            document.querySelectorAll('.day-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.querySelectorAll('.action-row').forEach(row => {
+                row.classList.remove('active');
+                const checkbox = row.querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.checked = false;
+            });
+            
+            document.getElementById('act-power-val').value = "true";
+            document.getElementById('act-filter-val').value = "true";
+            document.getElementById('act-heater-val').value = "true";
+            document.getElementById('act-bubble-val').value = "true";
+            document.getElementById('act-temp-val').value = "38";
+            document.getElementById('form-temp-display').innerText = "38°C";
+            
+            // Modal titles translations
+            document.getElementById('modal-title').innerText = t.modalAddTitle;
+            document.getElementById('modal-submit-btn').innerText = t.addBtn;
+            document.getElementById('modal-delete-container').style.display = 'none';
+
+            document.getElementById('schedule-modal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function editEvent(id) {
+            const ev = loadedEvents.find(e => e.id === id);
+            if (!ev) return;
+
+            editingEventId = id;
+
+            // Populate time and type
+            document.getElementById('sched-time').value = `${ev.hour.toString().padStart(2, '0')}:${ev.minute.toString().padStart(2, '0')}`;
+            document.getElementById('sched-type').value = ev.recurring ? "recurring" : "once";
+            toggleSchedType();
+
+            // Populate recurring days
+            document.querySelectorAll('.day-btn').forEach(btn => {
+                const dayIndex = parseInt(btn.dataset.day);
+                if (ev.recurring && (ev.dow & (1 << dayIndex))) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // Populate once date
+            if (!ev.recurring) {
+                document.getElementById('sched-date').value = `${ev.year}-${ev.month.toString().padStart(2, '0')}-${ev.day.toString().padStart(2, '0')}`;
+            }
+
+            // Populate action list
+            setModalActionRow('power', ev.setPower, ev.powerValue ? "true" : "false");
+            setModalActionRow('filter', ev.setFilter, ev.filterValue ? "true" : "false");
+            setModalActionRow('heater', ev.setHeater, ev.heaterValue ? "true" : "false");
+            setModalActionRow('bubble', ev.setBubble, ev.bubbleValue ? "true" : "false");
+
+            // Set Temp
+            document.getElementById('act-temp-en').checked = ev.setTemp;
+            toggleActionRow('temp', ev.setTemp);
+            const tempVal = ev.tempValue || 38;
+            document.getElementById('act-temp-val').value = tempVal;
+            document.getElementById('form-temp-display').innerText = tempVal + '°C';
+
+            // Modal headers & submit translations for Edit Mode
+            document.getElementById('modal-title').innerText = t.modalEditTitle;
+            document.getElementById('modal-submit-btn').innerText = t.saveBtn;
+            document.getElementById('modal-delete-container').style.display = 'block';
+
+            document.getElementById('schedule-modal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function setModalActionRow(action, isEnabled, value) {
+            const chk = document.getElementById(`act-${action}-en`);
+            chk.checked = isEnabled;
+            toggleActionRow(action, isEnabled);
+            const valSelect = document.getElementById(`act-${action}-val`);
+            if (valSelect) valSelect.value = value;
+        }
+
+        function closeScheduleModal() {
+            document.getElementById('schedule-modal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function closeScheduleModalOnOverlay(e) {
+            if (e.target.id === 'schedule-modal') {
+                closeScheduleModal();
+            }
+        }
+
         function toggleSchedType() {
             const type = document.getElementById('sched-type').value;
             document.getElementById('div-recurring').style.display = type === 'recurring' ? 'block' : 'none';
             document.getElementById('div-once').style.display = type === 'once' ? 'block' : 'none';
         }
 
+        function toggleDay(btn) {
+            btn.classList.toggle('active');
+        }
+
+        // Fetch & render schedule from API
         async function fetchSchedule() {
             try {
                 const r = await fetch('/api/schedule');
                 const events = await r.json();
-                const list = document.getElementById('schedule-list');
+                loadedEvents = events; // Store in local state
+                const container = document.getElementById('schedule-list');
+                
                 if (events.length === 0) {
-                    list.innerHTML = '<i>No events scheduled.</i>';
-                } else {
-                    let html = '';
-                    const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-                    events.forEach(ev => {
-                        let when = '';
-                        if (ev.recurring) {
-                            let activeDays = [];
-                            for(let i=0; i<7; i++) if (ev.dow & (1 << i)) activeDays.push(days[i]);
-                            when = 'Every ' + activeDays.join(',');
-                        } else {
-                            when = `${ev.year}-${ev.month}-${ev.day}`;
+                    container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-secondary); font-size: 14px; font-weight: 500;" data-i18n="noEvents">${t.noEvents}</div>`;
+                    return;
+                }
+                
+                let html = '';
+                
+                events.forEach(ev => {
+                    let when = '';
+                    if (ev.recurring) {
+                        let activeDays = [];
+                        for (let i = 0; i < 7; i++) {
+                            if (ev.dow & (1 << i)) activeDays.push(t.daysFull[i]);
                         }
-                        const time = `${ev.hour.toString().padStart(2, '0')}:${ev.minute.toString().padStart(2, '0')}`;
-                        
-                        let actions = [];
-                        if (ev.setPower) actions.push('Power ' + (ev.powerValue ? 'ON' : 'OFF'));
-                        if (ev.setFilter) actions.push('Filter ' + (ev.filterValue ? 'ON' : 'OFF'));
-                        if (ev.setHeater) actions.push('Heater ' + (ev.heaterValue ? 'ON' : 'OFF'));
-                        if (ev.setBubble) actions.push('Bubble ' + (ev.bubbleValue ? 'ON' : 'OFF'));
-                        if (ev.setTemp) actions.push('Temp ' + ev.tempValue + '°C');
+                        when = activeDays.length === 7 ? t.everyDay : t.every + activeDays.join(', ');
+                    } else {
+                        when = `${ev.year}-${ev.month.toString().padStart(2, '0')}-${ev.day.toString().padStart(2, '0')}`;
+                    }
+                    
+                    const time = `${ev.hour.toString().padStart(2, '0')}:${ev.minute.toString().padStart(2, '0')}`;
+                    
+                    let actions = [];
+                    if (ev.setPower) actions.push(`${t.powerBadge} ${ev.powerValue ? 'ON' : 'OFF'}`);
+                    if (ev.setFilter) actions.push(`${t.filterBadge} ${ev.filterValue ? 'ON' : 'OFF'}`);
+                    if (ev.setHeater) actions.push(`${t.heaterBadge} ${ev.heaterValue ? 'ON' : 'OFF'}`);
+                    if (ev.setBubble) actions.push(`${t.bubblesBadge} ${ev.bubbleValue ? 'ON' : 'OFF'}`);
+                    if (ev.setTemp) actions.push(`${t.tempBadge} ${ev.tempValue}°C`);
 
-                        html += `<div style="border: 1px solid #ddd; padding: 5px; margin: 5px 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; ${ev.enabled ? '' : 'opacity: 0.5;'}">
-                            <div>
-                                <b>${time}</b> [${when}]<br>
-                                <small>${actions.join(', ')}</small>
+                    const badgesHtml = actions.map(act => `<span class="mini-badge">${act}</span>`).join('');
+                    
+                    html += `
+                    <div class="schedule-item ${ev.enabled ? '' : 'item-disabled'}">
+                        <div class="sched-left" onclick="editEvent(${ev.id})">
+                            <div class="sched-time-row">
+                                <span class="sched-time">${time}</span>
+                                <span class="sched-days">${when}</span>
                             </div>
-                            <div>
+                            <div class="sched-actions-badges">${badgesHtml}</div>
+                        </div>
+                        <div class="sched-right">
+                            <label class="switch">
                                 <input type="checkbox" ${ev.enabled ? 'checked' : ''} onchange="toggleEvent(${ev.id}, this.checked)">
-                                <button onclick="deleteEvent(${ev.id})" style="background: #dc3545; padding: 2px 5px; margin: 0 0 0 5px; font-size: 0.8em;">X</button>
-                            </div>
-                        </div>`;
-                    });
-                    list.innerHTML = html;
-                }
-
-                // Limit check
-                const btn = document.getElementById('btn-add-event');
-                if (events.length >= 10) {
-                    btn.disabled = true;
-                    btn.innerText = 'Limit Reached (Max 10)';
-                    btn.style.opacity = '0.5';
-                } else {
-                    btn.disabled = false;
-                    btn.innerText = 'Add Scheduled Event';
-                    btn.style.opacity = '1';
-                }
-            } catch (e) { console.error(e); }
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>`;
+                });
+                container.innerHTML = html;
+            } catch (e) {
+                console.error('Fetch schedule error:', e);
+            }
         }
 
+        // Add/Update event API request
         async function addEvent() {
-            const type = document.getElementById('sched-type').value;
             const time = document.getElementById('sched-time').value;
-            if (!time) return alert('Please set a time');
+            if (!time) return alert(t.alertTime);
             const [hour, minute] = time.split(':').map(Number);
             
+            const type = document.getElementById('sched-type').value;
             const ev = {
                 recurring: type === 'recurring',
                 hour: hour,
@@ -235,104 +1615,87 @@
 
             if (ev.recurring) {
                 let mask = 0;
-                document.querySelectorAll('.sched-dow:checked').forEach(cb => mask |= (1 << parseInt(cb.value)));
-                if (mask === 0) return alert('Please select at least one day');
+                document.querySelectorAll('.day-btn.active').forEach(btn => {
+                    mask |= (1 << parseInt(btn.dataset.day));
+                });
+                if (mask === 0) return alert(t.alertDays);
                 ev.dow = mask;
             } else {
                 const date = document.getElementById('sched-date').value;
-                if (!date) return alert('Please select a date');
+                if (!date) return alert(t.alertDate);
                 const [y, m, d] = date.split('-').map(Number);
                 ev.year = y; ev.month = m; ev.day = d;
             }
 
-            await fetch('/api/schedule/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(ev)
-            });
-            fetchSchedule();
+            let url = '/api/schedule/add';
+            if (editingEventId !== null) {
+                url = '/api/schedule/update';
+                ev.id = editingEventId;
+            }
+
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(ev)
+                });
+                closeScheduleModal();
+                fetchSchedule();
+            } catch (e) {
+                console.error(e);
+            }
         }
 
-        async function deleteEvent(id) {
-            if (!confirm('Delete this event?')) return;
-            await fetch('/api/schedule/delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id })
-            });
-            fetchSchedule();
+        // Delete event from Modal
+        async function deleteEventFromModal() {
+            if (editingEventId === null) return;
+            if (!confirm(t.deleteConfirm)) return;
+            try {
+                await fetch('/api/schedule/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: editingEventId })
+                });
+                closeScheduleModal();
+                fetchSchedule();
+            } catch (e) {
+                console.error(e);
+            }
         }
 
+        // Toggle event API request (enable/disable switch)
         async function toggleEvent(id, enabled) {
-            await fetch('/api/schedule/toggle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, enabled: enabled })
-            });
-            fetchSchedule();
+            try {
+                await fetch('/api/schedule/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, enabled: enabled })
+                });
+                fetchSchedule();
+            } catch (e) {
+                console.error(e);
+            }
         }
 
+        // Initialize translations
+        document.title = t.title;
+        initTranslations();
+
+        // Init schedules fetch
         fetchSchedule();
 
-        function updateButton(id, isActive, forceDisabled) {
-            const btn = document.getElementById(id);
-            const cmd = id.split('-')[1];
-            const label = cmd.charAt(0).toUpperCase() + cmd.slice(1);
-
-            if (isActive) {
-                btn.className = 'btn-on';
-                btn.innerText = label + ' ON';
-            } else {
-                btn.className = 'btn-off';
-                btn.innerText = label + ' OFF';
-            }
-            
-            btn.disabled = forceDisabled;
-            btn.onclick = forceDisabled ? null : () => toggle(cmd, !isActive);
+        // Polling loop
+        function pollStatus() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(data => updateUI(data))
+                .catch(e => {
+                    console.error('Polling error:', e);
+                    updateUI({ online: false, power: false });
+                })
+                .finally(() => setTimeout(pollStatus, 2000));
         }
-
-        // Control Logic
-        function toggle(cmd, value) {
-            fetch('/api/control', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cmd: cmd, value: value })
-            });
-        }
-
-        function setTemp() {
-            const val = parseInt(document.getElementById('target-temp-input').value);
-            toggle('temp', val);
-        }
-
-        // Update Logic (SSE or Polling)
-        if (useSSE) {
-            const eventSource = new EventSource('//' + location.hostname + ':81/api/sse');
-            eventSource.onmessage = function(event) {
-                updateUI(JSON.parse(event.data));
-            };
-            eventSource.onerror = function(err) {
-                console.error('SSE Error:', err);
-            };
-        } else {
-            function pollStatus() {
-                fetch('/api/status')
-                    .then(r => r.json())
-                    .then(data => updateUI(data))
-                    .catch(e => {
-                        console.error('Polling error:', e);
-                        // If fetching fails, show offline
-                        updateUI({ online: false, power: false });
-                    })
-                    .finally(() => setTimeout(pollStatus, 2000));
-            }
-            pollStatus();
-        }
-
-        // Settings toggle
-        document.getElementById('use-sse').addEventListener('change', (e) => {
-            localStorage.setItem('useSSE', e.target.checked);
-        });
+        pollStatus();
     </script>
 </body>
 </html>

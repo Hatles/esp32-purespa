@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Wi-Fi Config</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'>
+    <style>
+        :root {
+            --bg: #f2f2f7;
+            --card: #ffffff;
+            --text: #000000;
+            --secondary: #8e8e93;
+            --border: #e5e5ea;
+            --tint: #007aff;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000;
+                --card: #1c1c1e;
+                --text: #ffffff;
+                --secondary: #8e8e93;
+                --border: #38383a;
+                --tint: #0a84ff;
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin: 20px 0 0 10px;
+            letter-spacing: -0.5px;
+        }
+        .subtitle {
+            font-size: 13px;
+            color: var(--secondary);
+            margin: -15px 0 10px 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .card {
+            background-color: var(--card);
+            border-radius: 12px;
+            padding: 4px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            min-height: 48px;
+        }
+        .row:last-child {
+            border-bottom: none;
+        }
+        label {
+            font-size: 16px;
+            font-weight: 500;
+            width: 100px;
+            flex-shrink: 0;
+        }
+        input {
+            background-color: transparent;
+            border: none;
+            font-size: 16px;
+            color: var(--text);
+            width: 100%;
+            outline: none;
+            text-align: right;
+            padding: 4px 0;
+        }
+        input::placeholder {
+            color: var(--secondary);
+            opacity: 0.7;
+        }
+        button {
+            width: 100%;
+            background-color: var(--tint);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-top: 10px;
+            transition: opacity 0.2s;
+        }
+        button:active {
+            opacity: 0.8;
+        }
+        
+        /* Spinner & Transition styles */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--tint);
+            border-radius: 50%;
+            margin: 10px auto 24px auto;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-card {
+            text-align: center;
+            padding: 32px 20px;
+        }
+        .loading-card h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+        }
+        .loading-card p {
+            font-size: 14px;
+            color: var(--secondary);
+            margin: 0 0 24px 0;
+            line-height: 1.4;
+        }
+        .instructions-box {
+            background-color: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: left;
+        }
+        .instructions-box h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0 0 10px 0;
+            color: var(--text);
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.3px;
+            color: var(--secondary);
+        }
+        .instructions-box ol {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 14px;
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .instructions-box li {
+            margin-bottom: 8px;
+        }
+        .instructions-box li:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <h1 id="txt-title">Wi-Fi Config</h1>
+        <div class='subtitle'>ESP32 PureSpa</div>
+        
+        <!-- Form View -->
+        <form id="config-form" method='post' action='/config'>
+            <div class='card'>
+                <div class='row'>
+                    <label id="lbl-ssid">SSID</label>
+                    <input type='text' id="input-ssid" name='ssid' placeholder='WiFi Name' required>
+                </div>
+                <div class='row'>
+                    <label id="lbl-password">Password</label>
+                    <input type='password' id="input-password" name='password' placeholder='Required'>
+                </div>
+            </div>
+            <button type='submit' id="btn-submit">Save & Restart</button>
+        </form>
+
+        <!-- Loading / Transition View -->
+        <div id="loading-view" class="card loading-card" style="display: none;">
+            <div class="spinner"></div>
+            <h2 id="txt-status">Connecting...</h2>
+            <p id="txt-desc">The device is restarting to connect to your home Wi-Fi network.</p>
+            
+            <div class="instructions-box">
+                <h3 id="txt-next-steps">Next steps</h3>
+                <ol>
+                    <li id="txt-step1">Reconnect your device to your home Wi-Fi network.</li>
+                    <li id="txt-step2">Automatic redirect to <strong>purespa.local</strong> once the device is online...</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Inline translations EN / FR
+        const i18n = {
+            fr: {
+                title: "Configuration Wi-Fi",
+                ssid: "SSID",
+                password: "Mot de passe",
+                wifiNamePlaceholder: "Nom du Wi-Fi",
+                requiredPlaceholder: "Requis (si sécurisé)",
+                saveBtn: "Enregistrer & Redémarrer",
+                statusSaving: "Enregistrement...",
+                statusConnecting: "Connexion en cours...",
+                descConnecting: "L'appareil redémarre pour se connecter à votre réseau Wi-Fi domestique.",
+                nextStepsTitle: "Prochaines étapes",
+                step1: "Reconnectez votre téléphone ou ordinateur à votre réseau Wi-Fi habituel.",
+                step2: "Redirection automatique vers <strong>purespa.local</strong> dès que l'appareil sera en ligne."
+            },
+            en: {
+                title: "Wi-Fi Config",
+                ssid: "SSID",
+                password: "Password",
+                wifiNamePlaceholder: "WiFi Name",
+                requiredPlaceholder: "Required (if secure)",
+                saveBtn: "Save & Restart",
+                statusSaving: "Saving...",
+                statusConnecting: "Connecting...",
+                descConnecting: "The device is restarting to connect to your home Wi-Fi network.",
+                nextStepsTitle: "Next steps",
+                step1: "Reconnect your device to your home Wi-Fi network.",
+                step2: "Automatic redirect to <strong>purespa.local</strong> once the device is online."
+            }
+        };
+
+        // Determine language
+        const userLang = navigator.language || navigator.userLanguage || 'en';
+        const isFR = userLang.startsWith('fr');
+        const lang = isFR ? i18n.fr : i18n.en;
+
+        // Apply translations to static elements
+        document.getElementById('txt-title').textContent = lang.title;
+        document.getElementById('lbl-ssid').textContent = lang.ssid;
+        document.getElementById('lbl-password').textContent = lang.password;
+        document.getElementById('input-ssid').placeholder = lang.wifiNamePlaceholder;
+        document.getElementById('input-password').placeholder = lang.requiredPlaceholder;
+        document.getElementById('btn-submit').textContent = lang.saveBtn;
+
+        // Form submission intercept
+        const form = document.getElementById('config-form');
+        const loadingView = document.getElementById('loading-view');
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // Set saving status
+            document.getElementById('txt-status').textContent = lang.statusSaving;
+            form.style.display = 'none';
+            loadingView.style.display = 'block';
+
+            // Gather inputs
+            const ssid = document.getElementById('input-ssid').value;
+            const password = document.getElementById('input-password').value;
+
+            // Send AJAX POST
+            const params = new URLSearchParams();
+            params.append('ssid', ssid);
+            params.append('password', password);
+
+            fetch('/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: params.toString()
+            })
+            .then(response => {
+                // Device will restart, show connection state
+                document.getElementById('txt-status').textContent = lang.statusConnecting;
+                document.getElementById('txt-desc').textContent = lang.descConnecting;
+                document.getElementById('txt-next-steps').textContent = lang.nextStepsTitle;
+                document.getElementById('txt-step1').textContent = lang.step1;
+                document.getElementById('txt-step2').innerHTML = lang.step2;
+
+                // Start mDNS redirect polling
+                startRedirectLoop();
+            })
+            .catch(error => {
+                console.error('Submission failed', error);
+                // Fallback: start polling anyway since ESP32 might have restarted immediately
+                document.getElementById('txt-status').textContent = lang.statusConnecting;
+                startRedirectLoop();
+            });
+        });
+
+        function startRedirectLoop() {
+            let attempts = 0;
+            const interval = setInterval(() => {
+                attempts++;
+                // Poll purespa.local status API
+                fetch('http://purespa.local/api/status', { mode: 'cors', cache: 'no-store' })
+                    .then(res => {
+                        if (res.ok) {
+                            clearInterval(interval);
+                            window.location.href = 'http://purespa.local/';
+                        }
+                    })
+                    .catch(err => {
+                        console.log('Waiting for purespa.local to come online...', attempts);
+                    });
+
+                // Fail-safe: if we try too long, add a manual retry link in case mDNS fails
+                if (attempts === 40) {
+                    const failSafeBox = document.createElement('div');
+                    failSafeBox.style.marginTop = '20px';
+                    failSafeBox.style.fontSize = '13px';
+                    failSafeBox.style.color = 'var(--secondary)';
+                    failSafeBox.innerHTML = isFR 
+                        ? 'Si la redirection automatique ne fonctionne pas après quelques minutes, essayez d\'ouvrir <a href="http://purespa.local" style="color: var(--tint);">http://purespa.local</a> manuellement ou recherchez l\'IP de l\'appareil dans l\'interface de votre box internet.'
+                        : 'If the automatic redirect does not work after a couple of minutes, try opening <a href="http://purespa.local" style="color: var(--tint);">http://purespa.local</a> manually or find the device\'s IP in your router admin panel.';
+                    loadingView.appendChild(failSafeBox);
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

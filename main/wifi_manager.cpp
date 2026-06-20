@@ -4,6 +4,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "mdns.h"
 
 static const char *TAG = "WiFiManager";
 
@@ -34,6 +35,17 @@ void WiFiManager::init() {
                                                         NULL));
 
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+
+    // Initialize mDNS responder
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "mDNS Init failed: %d", err);
+    } else {
+        mdns_hostname_set("purespa");
+        mdns_instance_name_set("PureSpa Controller");
+        mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
+        ESP_LOGI(TAG, "mDNS initialized. Hostname: purespa.local");
+    }
 }
 
 void WiFiManager::eventHandler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {

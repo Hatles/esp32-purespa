@@ -226,6 +226,41 @@ void PureSpaService::addEvent(const ScheduledEvent& event) {
     saveSchedule();
 }
 
+void PureSpaService::updateEvent(int id, const ScheduledEvent& event) {
+    std::lock_guard<std::recursive_mutex> lock(_eventsMutex);
+    bool found = false;
+    for (auto& ev : _events) {
+        if (ev.id == id) {
+            ev.recurring = event.recurring;
+            ev.dayOfWeekMask = event.dayOfWeekMask;
+            ev.year = event.year;
+            ev.month = event.month;
+            ev.day = event.day;
+            ev.hour = event.hour;
+            ev.minute = event.minute;
+            
+            ev.setPower = event.setPower;
+            ev.powerValue = event.powerValue;
+            ev.setFilter = event.setFilter;
+            ev.filterValue = event.filterValue;
+            ev.setHeater = event.setHeater;
+            ev.heaterValue = event.heaterValue;
+            ev.setBubble = event.setBubble;
+            ev.bubbleValue = event.bubbleValue;
+            ev.setTargetTemp = event.setTargetTemp;
+            ev.targetTempValue = event.targetTempValue;
+            
+            found = true;
+            ESP_LOGI(TAG, "Updated event ID %d: Time %02d:%02d, Recurring: %d", id, ev.hour, ev.minute, ev.recurring);
+            break;
+        }
+    }
+    if (!found) {
+        ESP_LOGW(TAG, "Failed to update event ID %d: Not found", id);
+    }
+    saveSchedule();
+}
+
 void PureSpaService::deleteEvent(int id) {
     std::lock_guard<std::recursive_mutex> lock(_eventsMutex);
     size_t oldSize = _events.size();

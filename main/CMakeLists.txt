@@ -1,4 +1,4 @@
-set(requires esp-tls nvs_flash esp_netif esp_http_server json driver esp_timer)
+set(requires esp-tls nvs_flash esp_netif esp_http_server json driver esp_timer mdns)
 idf_build_get_property(target IDF_TARGET)
 
 if(${target} STREQUAL "linux")
@@ -11,4 +11,5 @@ idf_component_register(SRCS "main.cpp" "wifi_manager.cpp" "dns_server.cpp" "capt
                     INCLUDE_DIRS "." "purespa"
                     PRIV_REQUIRES ${requires})
 
-target_add_binary_data(${COMPONENT_LIB} "index.html" TEXT)
+target_add_binary_data(${COMPONENT_LIB} "index.html.gz" BINARY)
+target_add_binary_data(${COMPONENT_LIB} "config.html.gz" BINARY)

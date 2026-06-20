@@ -16,9 +16,9 @@ static const char *TAG = "app_main";
 
 void init_sntp() {
     ESP_LOGI(TAG, "Initializing SNTP");
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    sntp_setservername(0, "pool.ntp.org");
-    sntp_init();
+    esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_init();
     
     // Set timezone to CET/CEST (example: Europe/Paris)
     // You might want to make this configurable

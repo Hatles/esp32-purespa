@@ -9,6 +9,9 @@
 
 static const char *TAG = "CaptivePortal";
 
+extern const uint8_t config_html_gz_start[] asm("_binary_config_html_gz_start");
+extern const uint8_t config_html_gz_end[]   asm("_binary_config_html_gz_end");
+
 void CaptivePortal::start() {
     if (_server != NULL) return;
 
@@ -70,19 +73,9 @@ void CaptivePortal::urlDecode(char *dst, const char *src) {
 }
 
 esp_err_t CaptivePortal::configGetHandler(httpd_req_t *req) {
-    const char* config_page = 
-        "<!DOCTYPE html><html><head><title>ESP32 Wi-Fi Config</title>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<style>body { font-family: Arial; margin: 20px; } input { width: 100%; padding: 10px; margin: 5px 0; } button { width: 100%; padding: 10px; background-color: #4CAF50; color: white; border: none; }</style>"
-        "</head><body>"
-        "<h1>Wi-Fi Configuration</h1>"
-        "<form method='post' action='/config'>"
-        "<label>SSID:</label><input type='text' name='ssid'>"
-        "<label>Password:</label><input type='password' name='password'>"
-        "<button type='submit'>Save & Restart</button>"
-        "</form>"
-        "</body></html>";
-    httpd_resp_send(req, config_page, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    httpd_resp_send(req, (const char *)config_html_gz_start, config_html_gz_end - config_html_gz_start);
     return ESP_OK;
 }
 
