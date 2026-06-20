@@ -1,5 +1,9 @@
 # ESP32 PureSpa Controller
 
+<p align="center">
+  <img src="purespa.png" alt="PureSpa Logo" width="120" height="120">
+</p>
+
 This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp8266-intexsbh20) project to the **ESP32** platform.
 
 **The primary goal** is to upgrade standard Intex PureSpa whirlpools with modern **Smart Home capabilities**. By integrating an ESP32, you gain **full remote control** over WiFi and **custom scheduling** features that are missing from the original control panel. This allows you to:
@@ -12,9 +16,10 @@ This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp
 ## Table of Contents
 - [Compatibility](#compatibility)
 - [New Features](#new-features-esp32)
+- [Firmware Updates (OTA)](#firmware-updates-ota)
+- [Hardware](#hardware)
 - [Technical Implementation](#technical-implementation)
 - [Real-time Status](#real-time-status)
-- [Installation](#installation)
 - [Disclaimer](#disclaimer)
 
 ## Compatibility
@@ -27,13 +32,13 @@ This project supports the same models as the original ESP8266 version:
 
 ## New Features (ESP32)
 
-Unlike the original MQTT-centric firmware, this ESP32 port focuses on a standalone Web UI experience, while maintaining the core logic for communicating with the spa controller.
+Unlike the original MQTT-centric firmware, this ESP32 port focuses on a standalone, premium Web UI experience, while maintaining the core logic for communicating with the spa controller.
 
-### 1. Web User Interface
-A hosted web server provides a dashboard to:
-- Monitor status (Temperature, Power, Filter, Heater, Bubbles).
-- Control all functions remotely.
-- View connection status and debug info.
+### 1. Web User Interface (iOS Premium Theme)
+A hosted web server provides a responsive dashboard featuring:
+- **Adaptive iOS Styling**: Dark/Light mode integration with smooth animations, high-contrast typography, and glassmorphic card layouts.
+- **Circular Temperature Dial**: An interactive SVG dial allowing you to slide or tap to adjust the target water temperature.
+- **Live State Monitoring**: Watch changes in real-time for Spa temperature, Power, Filter, Heater, and Bubbles.
 
 ![Web UI](assets/purespa_webui.png)
 
@@ -44,12 +49,34 @@ The ESP32 stores a schedule in its non-volatile memory (NVS), allowing automatio
 - **Actions:** Turn Power, Filter, Heater, or Bubbles ON/OFF, and set target Temperature.
 - **Auto-Power On:** If a scheduled event requires a feature (e.g., Heater ON) and the Spa is OFF, it will automatically power ON the Spa first.
 
-### 3. WiFi Access Point & Manager
-- **Access Point Mode:** If no known WiFi is found, the device creates an Access Point named `ESP32-PureSpa-Config`.
-- **Captive Portal:** Connect to the AP to configure your home WiFi credentials via a simple web page.
+### 3. Advanced Administration Drawer
+Access advanced features by clicking the settings gear in the top-right corner:
+- **Time Synchronization**: Synchronize the Spa's system clock directly with your phone/browser time.
+- **Live Diagnostics**: Review metrics in real-time, including Free Heap RAM, Uptime, and Wi-Fi signal strength (RSSI).
+- **System Actions**: Proactively trigger software reboots, erase NVS Wi-Fi credentials, clear schedules, or trigger a full factory reset.
 
-### 4. Missing Features
-- **MQTT:** Support for MQTT has **not** been implemented yet in this port.
+### 4. Over-The-Air (OTA) Updates
+Upload new firmware builds directly from the browser dashboard:
+- Stream firmware `.bin` files via raw binary upload (avoiding memory overhead).
+- Visualize real-time progress using an animated progress bar.
+- Automatic verification and reboot.
+
+### 5. Wi-Fi Access Point & Manager
+- **Access Point Mode:** If no known Wi-Fi is found, the device creates an Access Point named `ESP32-PureSpa-Config`.
+- **Captive Portal:** Connect to the AP to configure your home Wi-Fi credentials via a dedicated portal (`config.html`).
+
+### 6. Local DNS Resolution (mDNS)
+- Connect to your spa at **`http://purespa.local/`** instead of typing raw IP addresses.
+
+### 7. Onboard Status LED Subsystem
+The onboard blue LED (GPIO 2) blinks to visually report the controller state:
+- **Slow Blink**: Soft AP configuration mode (awaiting Wi-Fi credentials).
+- **Fast Blink**: Attempting to connect to the configured home Wi-Fi.
+- **Solid ON**: Successfully connected to Wi-Fi.
+- **Double-Flash Blink**: Wi-Fi connection error or failure.
+
+## Firmware Updates (OTA)
+For details on compiling and uploading updates, refer to the [OTA Update Documentation](ota_documentation.md).
 
 ## Hardware
 

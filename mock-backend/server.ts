@@ -146,6 +146,10 @@ app.get('/index.html', (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../main/index.html'));
 });
 
+app.get('/favicon.ico', (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../main/favicon.png'));
+});
+
 // Serve the config.html at /config
 app.get('/config', (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../main/config.html'));
@@ -314,6 +318,13 @@ app.post('/api/admin/reset/all', (req: Request, res: Response) => {
   console.log('[Admin API] Factory Reset requested... Clearing everything.');
   scheduleList = [];
   startTime = Date.now();
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/admin/ota', express.raw({ type: 'application/octet-stream', limit: '10mb' }), (req: Request, res: Response) => {
+  console.log(`[Admin API] OTA firmware upload started...`);
+  const data = req.body as Buffer;
+  console.log(`[Admin API] OTA upload completed. Received ${data ? data.length : 0} bytes.`);
   res.json({ status: 'ok' });
 });
 

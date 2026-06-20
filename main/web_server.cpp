@@ -10,11 +10,15 @@
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
 
 static const char *TAG = "WebServer";
 
 extern const uint8_t index_html_gz_start[] asm("_binary_index_html_gz_start");
 extern const uint8_t index_html_gz_end[]   asm("_binary_index_html_gz_end");
+extern const uint8_t favicon_png_start[] asm("_binary_favicon_png_start");
+extern const uint8_t favicon_png_end[]   asm("_binary_favicon_png_end");
 
 void WebServer::start() {
     if (_mainServer != NULL) return;
@@ -23,9 +27,11 @@ void WebServer::start() {
     httpd_config_t configMain = HTTPD_DEFAULT_CONFIG();
     configMain.server_port = 80;
     configMain.lru_purge_enable = true;
+    configMain.max_uri_handlers = 20;
 
     static const httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = rootGetHandler, .user_ctx = NULL };
     static const httpd_uri_t index_html = { .uri = "/index.html", .method = HTTP_GET, .handler = rootGetHandler, .user_ctx = NULL };
+    static const httpd_uri_t favicon_ico = { .uri = "/favicon.ico", .method = HTTP_GET, .handler = faviconGetHandler, .user_ctx = NULL };
     static const httpd_uri_t api_status = { .uri = "/api/status", .method = HTTP_GET, .handler = apiStatusHandler, .user_ctx = NULL };
     static const httpd_uri_t api_control = { .uri = "/api/control", .method = HTTP_POST, .handler = apiControlHandler, .user_ctx = NULL };
     static const httpd_uri_t api_schedule_get = { .uri = "/api/schedule", .method = HTTP_GET, .handler = apiScheduleGetHandler, .user_ctx = NULL };
@@ -38,6 +44,7 @@ void WebServer::start() {
     static const httpd_uri_t api_admin_reset_wifi = { .uri = "/api/admin/reset/wifi", .method = HTTP_POST, .handler = apiAdminResetWifiHandler, .user_ctx = NULL };
     static const httpd_uri_t api_admin_reset_schedule = { .uri = "/api/admin/reset/schedule", .method = HTTP_POST, .handler = apiAdminResetScheduleHandler, .user_ctx = NULL };
     static const httpd_uri_t api_admin_reset_all = { .uri = "/api/admin/reset/all", .method = HTTP_POST, .handler = apiAdminResetAllHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_ota = { .uri = "/api/admin/ota", .method = HTTP_POST, .handler = apiAdminOtaHandler, .user_ctx = NULL };
 
     esp_netif_ip_info_t ip_info;
     esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
@@ -50,6 +57,7 @@ void WebServer::start() {
     if (httpd_start(&_mainServer, &configMain) == ESP_OK) {
         httpd_register_uri_handler(_mainServer, &root);
         httpd_register_uri_handler(_mainServer, &index_html);
+        httpd_register_uri_handler(_mainServer, &favicon_ico);
         httpd_register_uri_handler(_mainServer, &api_status);
         httpd_register_uri_handler(_mainServer, &api_control);
         httpd_register_uri_handler(_mainServer, &api_schedule_get);
@@ -62,6 +70,7 @@ void WebServer::start() {
         httpd_register_uri_handler(_mainServer, &api_admin_reset_wifi);
         httpd_register_uri_handler(_mainServer, &api_admin_reset_schedule);
         httpd_register_uri_handler(_mainServer, &api_admin_reset_all);
+        httpd_register_uri_handler(_mainServer, &api_admin_ota);
     }
 
     /*
@@ -91,6 +100,12 @@ esp_err_t WebServer::rootGetHandler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_send(req, (const char *)index_html_gz_start, index_html_gz_end - index_html_gz_start);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::faviconGetHandler(httpd_req_t *req) {
+    httpd_resp_set_type(req, "image/png");
+    httpd_resp_send(req, (const char *)favicon_png_start, favicon_png_end - favicon_png_start);
     return ESP_OK;
 }
 
@@ -355,6 +370,94 @@ esp_err_t WebServer::apiAdminResetAllHandler(httpd_req_t *req) {
     
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    xTaskCreate(reboot_task, "reboot_task", 2048, NULL, 5, NULL);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminOtaHandler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Starting OTA update upload...");
+
+    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
+    if (update_partition == NULL) {
+        ESP_LOGE(TAG, "Passive OTA partition not found");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No passive OTA partition found");
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "Writing to partition %s at offset 0x%lx", update_partition->label, (unsigned long)update_partition->address);
+
+    esp_ota_handle_t update_handle = 0;
+    esp_err_t err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA begin failed");
+        return ESP_FAIL;
+    }
+
+    char *buf = (char *)malloc(1024);
+    if (buf == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate memory for buffer");
+        esp_ota_abort(update_handle);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
+        return ESP_FAIL;
+    }
+
+    int remaining = req->content_len;
+    int received = 0;
+    while (remaining > 0) {
+        int read_len = (remaining > 1024) ? 1024 : remaining;
+        int ret = httpd_req_recv(req, buf, read_len);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                continue;
+            }
+            ESP_LOGE(TAG, "Connection closed or error during OTA receive (%d)", ret);
+            free(buf);
+            esp_ota_abort(update_handle);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Connection lost during upload");
+            return ESP_FAIL;
+        }
+
+        err = esp_ota_write(update_handle, (const void *)buf, ret);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "esp_ota_write failed (%s)", esp_err_to_name(err));
+            free(buf);
+            esp_ota_abort(update_handle);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Flash write failed");
+            return ESP_FAIL;
+        }
+
+        remaining -= ret;
+        received += ret;
+        if (received % 102400 == 0 || remaining == 0) {
+            ESP_LOGI(TAG, "OTA Progress: %d / %d bytes written", received, (int)req->content_len);
+        }
+    }
+
+    free(buf);
+
+    err = esp_ota_end(update_handle);
+    if (err != ESP_OK) {
+        if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+            ESP_LOGE(TAG, "Image validation failed, image is corrupted");
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Image validation failed");
+        } else {
+            ESP_LOGE(TAG, "esp_ota_end failed (%s)", esp_err_to_name(err));
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA validation end failed");
+        }
+        return ESP_FAIL;
+    }
+
+    err = esp_ota_set_boot_partition(update_partition);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (%s)", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to set boot partition");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "OTA update successful! Rebooting in 1 second...");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+
     xTaskCreate(reboot_task, "reboot_task", 2048, NULL, 5, NULL);
     return ESP_OK;
 }

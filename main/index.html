@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>PureSpa Controller</title>
+    <link rel="icon" type="image/png" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
@@ -757,9 +758,12 @@
     <div class="app-container">
         <!-- Header -->
         <header>
-            <div>
-                <h1 data-i18n="title">PureSpa</h1>
-                <span id="current-time" class="time-sub" data-i18n="loading">Loading...</span>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="/favicon.ico" alt="PureSpa Logo" style="width: 32px; height: 32px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">
+                <div>
+                    <h1 data-i18n="title" style="line-height: 1.1; margin: 0;">PureSpa</h1>
+                    <span id="current-time" class="time-sub" style="margin-top: 1px;" data-i18n="loading">Loading...</span>
+                </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div id="online-badge" class="badge badge-offline">Offline</div>
@@ -1075,6 +1079,27 @@
                         <span class="row-label" style="color: #ff9500;" data-i18n="resetScheduleBtn">Reset Schedule</span>
                     </div>
                 </div>
+
+                <!-- Firmware Update (OTA) -->
+                <div class="section-title" style="margin-top: 16px;" data-i18n="otaTitle">Firmware Update (OTA)</div>
+                <div class="group-card" style="padding: 12px 16px;">
+                    <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+                        <span class="row-label" style="font-size: 14px; font-weight: normal; color: var(--text-secondary);" data-i18n="otaDesc">Select a firmware binary (.bin) to update the ESP32.</span>
+                        <div style="display: flex; gap: 10px; margin-top: 4px;">
+                            <input type="file" id="ota-file-input" accept=".bin" style="display: none;" onchange="handleOtaSelect(event)">
+                            <button type="button" class="ios-btn" style="flex: 1; padding: 10px; margin: 0; background: var(--tint-color); color: #fff; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer;" onclick="document.getElementById('ota-file-input').click()" data-i18n="otaBtn">Choose File (.bin)</button>
+                        </div>
+                        <div id="ota-progress-container" style="display: none; margin-top: 8px; width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                                <span id="ota-progress-status" style="color: var(--text-color);" data-i18n="otaUploading">Uploading...</span>
+                                <span id="ota-progress-percent" style="font-weight: 600; color: var(--tint-color);">0%</span>
+                            </div>
+                            <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px; overflow: hidden;">
+                                <div id="ota-progress-bar" style="width: 0%; height: 100%; background: #34c759; transition: width 0.1s ease;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div style="margin-top: 16px;">
                     <button type="button" class="ios-danger-btn" onclick="factoryReset()" data-i18n="factoryResetBtn">Factory Reset</button>
@@ -1158,7 +1183,13 @@
                 seconds: "seconds",
                 minutes: "minutes",
                 hours: "hours",
-                days: "days"
+                days: "days",
+                otaTitle: "Firmware Update (OTA)",
+                otaDesc: "Select a firmware binary (.bin) to update the ESP32.",
+                otaBtn: "Choose File (.bin)",
+                otaUploading: "Uploading...",
+                otaSuccess: "Firmware update successful! Rebooting...",
+                otaError: "Update failed. Please try again."
             },
             fr: {
                 title: "Contrôleur PureSpa",
@@ -1232,7 +1263,13 @@
                 seconds: "secondes",
                 minutes: "minutes",
                 hours: "heures",
-                days: "jours"
+                days: "jours",
+                otaTitle: "Mise à jour Firmware (OTA)",
+                otaDesc: "Sélectionnez un fichier binaire (.bin) pour mettre à jour l'ESP32.",
+                otaBtn: "Choisir un fichier (.bin)",
+                otaUploading: "Envoi en cours...",
+                otaSuccess: "Mise à jour réussie ! Redémarrage...",
+                otaError: "Échec de la mise à jour. Veuillez réessayer."
             }
         };
 
@@ -1937,6 +1974,58 @@
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        function handleOtaSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const progressContainer = document.getElementById('ota-progress-container');
+            const progressStatus = document.getElementById('ota-progress-status');
+            const progressPercent = document.getElementById('ota-progress-percent');
+            const progressBar = document.getElementById('ota-progress-bar');
+
+            progressContainer.style.display = 'block';
+            progressStatus.innerText = t.otaUploading;
+            progressPercent.innerText = '0%';
+            progressBar.style.width = '0%';
+            progressBar.style.backgroundColor = '#34c759'; // reset to success green
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/admin/ota', true);
+            xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressPercent.innerText = percent + '%';
+                    progressBar.style.width = percent + '%';
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    progressStatus.innerText = t.otaSuccess;
+                    progressPercent.innerText = '100%';
+                    progressBar.style.width = '100%';
+                    setTimeout(() => {
+                        alert(t.rebooting);
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    progressStatus.innerText = t.otaError + ' (' + xhr.status + ')';
+                    progressBar.style.backgroundColor = '#ff3b30'; // error red
+                    alert(t.otaError + ': ' + (xhr.responseText || xhr.statusText));
+                }
+            };
+
+            xhr.onerror = function() {
+                progressStatus.innerText = t.otaError;
+                progressBar.style.backgroundColor = '#ff3b30'; // error red
+                alert(t.otaError);
+            };
+
+            xhr.send(file);
         }
 
         // Initialize translations

@@ -22,6 +22,7 @@ private:
     httpd_handle_t _sseServer;
 
     static esp_err_t rootGetHandler(httpd_req_t *req);
+    static esp_err_t faviconGetHandler(httpd_req_t *req);
     static esp_err_t apiStatusHandler(httpd_req_t *req);
     static esp_err_t apiControlHandler(httpd_req_t *req);
     static esp_err_t apiSseHandler(httpd_req_t *req);
@@ -35,6 +36,7 @@ private:
     static esp_err_t apiAdminResetWifiHandler(httpd_req_t *req);
     static esp_err_t apiAdminResetScheduleHandler(httpd_req_t *req);
     static esp_err_t apiAdminResetAllHandler(httpd_req_t *req);
+    static esp_err_t apiAdminOtaHandler(httpd_req_t *req);
 };
 
 #endif // WEB_SERVER_H
