@@ -37,6 +37,10 @@ private:
     static esp_err_t apiAdminResetScheduleHandler(httpd_req_t *req);
     static esp_err_t apiAdminResetAllHandler(httpd_req_t *req);
     static esp_err_t apiAdminOtaHandler(httpd_req_t *req);
+    static esp_err_t apiAdminAuditGetHandler(httpd_req_t *req);
+    static esp_err_t apiAdminAuditConfigGetHandler(httpd_req_t *req);
+    static esp_err_t apiAdminAuditConfigPostHandler(httpd_req_t *req);
+    static esp_err_t apiAdminAuditClearHandler(httpd_req_t *req);
 };
 
 #endif // WEB_SERVER_H

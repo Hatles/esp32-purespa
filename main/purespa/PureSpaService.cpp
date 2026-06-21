@@ -1,4 +1,5 @@
 #include "PureSpaService.h"
+#include "AuditLogger.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
@@ -22,6 +23,7 @@ void PureSpaService::init() {
     }
 
     loadSchedule();
+    AuditLogger::getInstance().init();
 
     ESP_LOGI(TAG, "Command queue created. Starting service task...");
     xTaskCreatePinnedToCore(taskWrapper, "purespa_service_task", 8192, this, 5, NULL, 1);
@@ -121,6 +123,9 @@ void PureSpaService::checkSchedule() {
 void PureSpaService::executeEvent(const ScheduledEvent& event) {
     bool isCurrentlyOn = _io.isPowerOn();
 
+    char source_buf[32];
+    snprintf(source_buf, sizeof(source_buf), "Schedule #%d", event.id);
+
     // 1. Check if we need to auto power-on (only if we want to turn something ON)
     bool needsPowerOn = (event.setFilter && event.filterValue) || 
                         (event.setHeater && event.heaterValue) || 
@@ -129,18 +134,18 @@ void PureSpaService::executeEvent(const ScheduledEvent& event) {
 
     if (needsPowerOn && !isCurrentlyOn) {
         ESP_LOGI(TAG, "Auto powering ON for scheduled task");
-        setPower(true);
+        setPower(true, source_buf);
         isCurrentlyOn = true; // Assume it will turn on for subsequent command checks
     }
 
     // 2. Execute commands
-    if (event.setPower) setPower(event.powerValue);
+    if (event.setPower) setPower(event.powerValue, source_buf);
     
     // Only execute feature commands if power is ON (either it was already ON, or we just turned it ON)
     if (isCurrentlyOn) {
-        if (event.setFilter) setFilter(event.filterValue);
-        if (event.setHeater) setHeater(event.heaterValue);
-        if (event.setBubble) setBubble(event.bubbleValue);
+        if (event.setFilter) setFilter(event.filterValue, source_buf);
+        if (event.setHeater) setHeater(event.heaterValue, source_buf);
+        if (event.setBubble) setBubble(event.bubbleValue, source_buf);
         if (event.setTargetTemp) setTargetTemp(event.targetTempValue);
     } else {
         ESP_LOGI(TAG, "Skipping feature commands as Power is OFF and no 'ON' trigger was present");
@@ -404,19 +409,31 @@ void PureSpaService::sendRequest(SpaCommand cmd, int value) {
     }
 }
 
-void PureSpaService::setPower(bool on) {
+void PureSpaService::setPower(bool on, const char* source) {
+    if (_io.isPowerOn() != on) {
+        AuditLogger::getInstance().logEvent(source, "Power", on);
+    }
     sendRequest(on ? SpaCommand::POWER_ON : SpaCommand::POWER_OFF);
 }
 
-void PureSpaService::setFilter(bool on) {
+void PureSpaService::setFilter(bool on, const char* source) {
+    if (_io.isFilterOn() != on) {
+        AuditLogger::getInstance().logEvent(source, "Filter", on);
+    }
     sendRequest(on ? SpaCommand::FILTER_ON : SpaCommand::FILTER_OFF);
 }
 
-void PureSpaService::setBubble(bool on) {
+void PureSpaService::setBubble(bool on, const char* source) {
+    if (_io.isBubbleOn() != on) {
+        AuditLogger::getInstance().logEvent(source, "Bubbles", on);
+    }
     sendRequest(on ? SpaCommand::BUBBLE_ON : SpaCommand::BUBBLE_OFF);
 }
 
-void PureSpaService::setHeater(bool on) {
+void PureSpaService::setHeater(bool on, const char* source) {
+    if (_io.isHeaterOn() != on) {
+        AuditLogger::getInstance().logEvent(source, "Heater", on);
+    }
     sendRequest(on ? SpaCommand::HEATER_ON : SpaCommand::HEATER_OFF);
 }
 

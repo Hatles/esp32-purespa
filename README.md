@@ -55,20 +55,27 @@ Access advanced features by clicking the settings gear in the top-right corner:
 - **Live Diagnostics**: Review metrics in real-time, including Free Heap RAM, Uptime, and Wi-Fi signal strength (RSSI).
 - **System Actions**: Proactively trigger software reboots, erase NVS Wi-Fi credentials, clear schedules, or trigger a full factory reset.
 
-### 4. Over-The-Air (OTA) Updates
+### 4. Activity History (Audit Trail)
+Keep track of your spa's activity with a local, non-volatile audit log:
+- **Event Logging**: Automatically records state transitions (Power ON/OFF, Filter ON/OFF, Heater ON/OFF, Bubbles ON/OFF) and actions executed by the scheduler.
+- **Wear-leveling Protection**: Serializes logs into a compact binary block stored in NVS, protecting the ESP32 flash memory from excessive write cycles.
+- **Configurable Retention**: Keeps logs for up to 7 days (fully configurable via the administration panel).
+- **Automated Pruning**: Automatically prunes old events once system time is synchronized, ignoring manual temperature adjustments and physical control panel button presses to keep the log clean and focused.
+
+### 5. Over-The-Air (OTA) Updates
 Upload new firmware builds directly from the browser dashboard:
 - Stream firmware `.bin` files via raw binary upload (avoiding memory overhead).
 - Visualize real-time progress using an animated progress bar.
 - Automatic verification and reboot.
 
-### 5. Wi-Fi Access Point & Manager
+### 6. Wi-Fi Access Point & Manager
 - **Access Point Mode:** If no known Wi-Fi is found, the device creates an Access Point named `ESP32-PureSpa-Config`.
 - **Captive Portal:** Connect to the AP to configure your home Wi-Fi credentials via a dedicated portal (`config.html`).
 
-### 6. Local DNS Resolution (mDNS)
+### 7. Local DNS Resolution (mDNS)
 - Connect to your spa at **`http://purespa.local/`** instead of typing raw IP addresses.
 
-### 7. Onboard Status LED Subsystem
+### 8. Onboard Status LED Subsystem
 The onboard blue LED (GPIO 2) blinks to visually report the controller state:
 - **Slow Blink**: Soft AP configuration mode (awaiting Wi-Fi credentials).
 - **Fast Blink**: Attempting to connect to the configured home Wi-Fi.

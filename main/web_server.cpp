@@ -12,6 +12,7 @@
 #include "freertos/task.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
+#include "AuditLogger.h"
 
 static const char *TAG = "WebServer";
 
@@ -45,6 +46,10 @@ void WebServer::start() {
     static const httpd_uri_t api_admin_reset_schedule = { .uri = "/api/admin/reset/schedule", .method = HTTP_POST, .handler = apiAdminResetScheduleHandler, .user_ctx = NULL };
     static const httpd_uri_t api_admin_reset_all = { .uri = "/api/admin/reset/all", .method = HTTP_POST, .handler = apiAdminResetAllHandler, .user_ctx = NULL };
     static const httpd_uri_t api_admin_ota = { .uri = "/api/admin/ota", .method = HTTP_POST, .handler = apiAdminOtaHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_audit_get = { .uri = "/api/admin/audit", .method = HTTP_GET, .handler = apiAdminAuditGetHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_audit_config_get = { .uri = "/api/admin/audit/config", .method = HTTP_GET, .handler = apiAdminAuditConfigGetHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_audit_config_post = { .uri = "/api/admin/audit/config", .method = HTTP_POST, .handler = apiAdminAuditConfigPostHandler, .user_ctx = NULL };
+    static const httpd_uri_t api_admin_audit_clear = { .uri = "/api/admin/audit/clear", .method = HTTP_POST, .handler = apiAdminAuditClearHandler, .user_ctx = NULL };
 
     esp_netif_ip_info_t ip_info;
     esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
@@ -71,6 +76,10 @@ void WebServer::start() {
         httpd_register_uri_handler(_mainServer, &api_admin_reset_schedule);
         httpd_register_uri_handler(_mainServer, &api_admin_reset_all);
         httpd_register_uri_handler(_mainServer, &api_admin_ota);
+        httpd_register_uri_handler(_mainServer, &api_admin_audit_get);
+        httpd_register_uri_handler(_mainServer, &api_admin_audit_config_get);
+        httpd_register_uri_handler(_mainServer, &api_admin_audit_config_post);
+        httpd_register_uri_handler(_mainServer, &api_admin_audit_clear);
     }
 
     /*
@@ -459,5 +468,66 @@ esp_err_t WebServer::apiAdminOtaHandler(httpd_req_t *req) {
     httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
 
     xTaskCreate(reboot_task, "reboot_task", 2048, NULL, 5, NULL);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminAuditGetHandler(httpd_req_t *req) {
+    std::vector<AuditEvent> events = AuditLogger::getInstance().getEvents();
+    cJSON *root = cJSON_CreateArray();
+    for (const auto& ev : events) {
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddNumberToObject(item, "timestamp", ev.timestamp);
+        cJSON_AddStringToObject(item, "source", ev.source);
+        cJSON_AddStringToObject(item, "feature", ev.feature);
+        cJSON_AddBoolToObject(item, "state", ev.state);
+        cJSON_AddItemToArray(root, item);
+    }
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
+    free(json_str);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminAuditConfigGetHandler(httpd_req_t *req) {
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "retentionDays", AuditLogger::getInstance().getRetentionDays());
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
+    free(json_str);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminAuditConfigPostHandler(httpd_req_t *req) {
+    char buf[64];
+    int ret = httpd_req_recv(req, buf, req->content_len);
+    if (ret <= 0) return ESP_FAIL;
+    buf[ret] = '\0';
+    
+    cJSON *json = cJSON_Parse(buf);
+    if (json == NULL) return ESP_FAIL;
+    
+    cJSON *days_item = cJSON_GetObjectItem(json, "retentionDays");
+    if (cJSON_IsNumber(days_item)) {
+        AuditLogger::getInstance().setRetentionDays(days_item->valueint);
+    }
+    cJSON_Delete(json);
+    
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::apiAdminAuditClearHandler(httpd_req_t *req) {
+    AuditLogger::getInstance().clearLog();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"status\":\"ok\"}", HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }

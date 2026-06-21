@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>PureSpa Controller</title>
     <link rel="icon" type="image/png" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
@@ -746,11 +747,76 @@
                 width: 400px;
                 max-height: 80vh;
             }
-            .text-val {
-                font-size: 15px;
-                color: var(--text-secondary);
-                font-weight: 500;
-            }
+        }
+
+        .text-val {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        /* Audit Trail Styles */
+        .timeline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 10px;
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+        .timeline-icon-wrapper {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .timeline-details {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .timeline-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .timeline-sub {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .timeline-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .timeline-badge-on {
+            background-color: rgba(52, 199, 89, 0.15);
+            color: #34c759;
+        }
+        .timeline-badge-off {
+            background-color: rgba(255, 59, 48, 0.15);
+            color: #ff3b30;
         }
     </style>
 </head>
@@ -1080,6 +1146,31 @@
                     </div>
                 </div>
 
+                <!-- Audit Trail (Activity History) -->
+                <div class="section-title" style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <span data-i18n="auditTitle">Activity History</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 12px; color: var(--text-secondary);" data-i18n="auditRetention">Retention:</span>
+                        <select id="audit-retention-select" onchange="updateAuditRetention()" style="font-size: 12px; border: none; background: transparent; color: var(--tint-color); font-weight: 600; outline: none; cursor: pointer;">
+                            <option value="1">1d</option>
+                            <option value="2">2d</option>
+                            <option value="3">3d</option>
+                            <option value="4">4d</option>
+                            <option value="5">5d</option>
+                            <option value="6">6d</option>
+                            <option value="7" selected>7d</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="group-card" style="padding: 12px 16px;">
+                    <div id="audit-timeline" class="timeline-container">
+                        <div style="text-align: center; padding: 20px; color: var(--text-secondary);" data-i18n="loading">Loading...</div>
+                    </div>
+                    <div style="margin-top: 10px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 8px;">
+                        <button type="button" class="link-btn" style="color: #ff3b30; font-size: 13px; font-weight: 600; padding: 4px 0; margin: 0;" onclick="clearAuditLogs()" data-i18n="auditClearBtn">Clear History</button>
+                    </div>
+                </div>
+
                 <!-- Firmware Update (OTA) -->
                 <div class="section-title" style="margin-top: 16px;" data-i18n="otaTitle">Firmware Update (OTA)</div>
                 <div class="group-card" style="padding: 12px 16px;">
@@ -1189,7 +1280,12 @@
                 otaBtn: "Choose File (.bin)",
                 otaUploading: "Uploading...",
                 otaSuccess: "Firmware update successful! Rebooting...",
-                otaError: "Update failed. Please try again."
+                otaError: "Update failed. Please try again.",
+                auditTitle: "Activity History",
+                auditRetention: "Retention:",
+                auditClearBtn: "Clear History",
+                auditClearConfirm: "Are you sure you want to clear the activity history?",
+                auditNoEvents: "No activity logged yet."
             },
             fr: {
                 title: "Contrôleur PureSpa",
@@ -1269,7 +1365,12 @@
                 otaBtn: "Choisir un fichier (.bin)",
                 otaUploading: "Envoi en cours...",
                 otaSuccess: "Mise à jour réussie ! Redémarrage...",
-                otaError: "Échec de la mise à jour. Veuillez réessayer."
+                otaError: "Échec de la mise à jour. Veuillez réessayer.",
+                auditTitle: "Historique d'activité",
+                auditRetention: "Rétention :",
+                auditClearBtn: "Effacer l'historique",
+                auditClearConfirm: "Êtes-vous sûr de vouloir effacer l'historique d'activité ?",
+                auditNoEvents: "Aucune activité enregistrée."
             }
         };
 
@@ -1853,6 +1954,9 @@
             if (lastFetchedData) {
                 updateAdminMetrics(lastFetchedData);
             }
+
+            fetchAuditLogs();
+            fetchAuditRetention();
         }
 
         function closeAdminModal() {
@@ -2026,6 +2130,114 @@
             };
 
             xhr.send(file);
+        }
+
+        async function fetchAuditLogs() {
+            const container = document.getElementById('audit-timeline');
+            try {
+                const res = await fetch('/api/admin/audit');
+                if (!res.ok) throw new Error('Failed to fetch audit log');
+                const events = await res.json();
+                
+                if (events.length === 0) {
+                    container.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 14px;" data-i18n="auditNoEvents">${t.auditNoEvents}</div>`;
+                    return;
+                }
+
+                container.innerHTML = events.reverse().map(ev => {
+                    const date = new Date(ev.timestamp * 1000);
+                    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                    
+                    let iconColor = '#8e8e93';
+                    let initial = ev.feature.charAt(0);
+                    let badgeLabel = ev.feature;
+                    if (ev.feature === 'Power') {
+                        iconColor = ev.state ? '#34c759' : '#ff3b30';
+                        badgeLabel = t.powerBadge || 'Power';
+                    } else if (ev.feature === 'Filter') {
+                        iconColor = '#007aff';
+                        badgeLabel = t.filterBadge || 'Filter';
+                    } else if (ev.feature === 'Heater') {
+                        iconColor = '#ff9500';
+                        badgeLabel = t.heaterBadge || 'Heater';
+                    } else if (ev.feature === 'Bubbles') {
+                        iconColor = '#00a699';
+                        badgeLabel = t.bubblesBadge || 'Bubbles';
+                    }
+
+                    const stateBadgeClass = ev.state ? 'timeline-badge timeline-badge-on' : 'timeline-badge timeline-badge-off';
+                    const stateLabel = ev.state ? 'ON' : 'OFF';
+
+                    let sourceLabel = ev.source;
+                    if (ev.source.startsWith('Schedule #')) {
+                        const schedId = ev.source.replace('Schedule #', '');
+                        sourceLabel = (userLang === 'fr' ? 'Planning #' : 'Schedule #') + schedId;
+                    }
+
+                    return `
+                        <div class="timeline-item">
+                            <div class="timeline-icon-wrapper" style="background-color: ${iconColor};">
+                                <span style="font-size: 13px; font-weight: 700;">${initial}</span>
+                            </div>
+                            <div class="timeline-details">
+                                <div class="timeline-meta">
+                                    <span>${badgeLabel}</span>
+                                    <span class="${stateBadgeClass}">${stateLabel}</span>
+                                </div>
+                                <div class="timeline-sub">
+                                    <span>${sourceLabel}</span>
+                                    <span>${dateStr} ${timeStr}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = `<div style="text-align: center; padding: 20px; color: #ff3b30; font-size: 14px;">Error loading history</div>`;
+            }
+        }
+
+        async function fetchAuditRetention() {
+            try {
+                const res = await fetch('/api/admin/audit/config');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('audit-retention-select').value = data.retentionDays;
+                }
+            } catch (e) {
+                console.error('Failed to fetch retention config:', e);
+            }
+        }
+
+        async function updateAuditRetention() {
+            const select = document.getElementById('audit-retention-select');
+            const days = parseInt(select.value);
+            try {
+                const res = await fetch('/api/admin/audit/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ retentionDays: days })
+                });
+                if (res.ok) {
+                    fetchAuditLogs();
+                }
+            } catch (e) {
+                console.error('Failed to update retention config:', e);
+            }
+        }
+
+        async function clearAuditLogs() {
+            if (!confirm(t.auditClearConfirm)) return;
+            try {
+                const res = await fetch('/api/admin/audit/clear', { method: 'POST' });
+                if (res.ok) {
+                    fetchAuditLogs();
+                }
+            } catch (e) {
+                console.error('Failed to clear logs:', e);
+            }
         }
 
         // Initialize translations

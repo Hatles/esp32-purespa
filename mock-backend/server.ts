@@ -48,6 +48,21 @@ interface ScheduledEvent {
   tempValue: number;
 }
 
+interface AuditEvent {
+  timestamp: number;
+  source: string;
+  feature: string;
+  state: boolean;
+}
+
+let mockAuditLogs: AuditEvent[] = [
+  { timestamp: Math.floor(Date.now() / 1000) - 7200, source: 'Schedule #1', feature: 'Filter', state: true },
+  { timestamp: Math.floor(Date.now() / 1000) - 7200, source: 'Schedule #1', feature: 'Heater', state: true },
+  { timestamp: Math.floor(Date.now() / 1000) - 3600, source: 'Web UI', feature: 'Bubbles', state: true },
+  { timestamp: Math.floor(Date.now() / 1000) - 1800, source: 'Web UI', feature: 'Bubbles', state: false },
+];
+let retentionDays = 7;
+
 let startTime = Date.now();
 
 // In-memory mock state
@@ -174,29 +189,42 @@ app.post('/api/control', (req: Request, res: Response) => {
   console.log(`[Control API] cmd: ${cmd}, value: ${value}`);
 
   if (cmd === 'power') {
-    state.power = value;
-    if (!state.power) {
-      // Turning off power turns off all sub-devices
-      state.filter = false;
-      state.heater = false;
-      state.bubble = false;
+    if (state.power !== value) {
+      mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Power', state: value });
+      state.power = value;
+      if (!state.power) {
+        if (state.filter) mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Filter', state: false });
+        if (state.heater) mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Heater', state: false });
+        if (state.bubble) mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Bubbles', state: false });
+        state.filter = false;
+        state.heater = false;
+        state.bubble = false;
+      }
     }
   } else if (state.power) {
-    // Other controls only work when power is ON
     if (cmd === 'filter') {
-      state.filter = value;
-      if (!state.filter) {
-        // Turning off filter automatically turns off heater (hardware limit)
-        state.heater = false;
+      if (state.filter !== value) {
+        mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Filter', state: value });
+        state.filter = value;
+        if (!state.filter) {
+          if (state.heater) mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Heater', state: false });
+          state.heater = false;
+        }
       }
     } else if (cmd === 'heater') {
-      state.heater = value;
-      if (state.heater) {
-        // Heater requires filter to be ON
-        state.filter = true;
+      if (state.heater !== value) {
+        if (value && !state.filter) {
+          mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Filter', state: true });
+          state.filter = true;
+        }
+        mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Heater', state: value });
+        state.heater = value;
       }
     } else if (cmd === 'bubble') {
-      state.bubble = value;
+      if (state.bubble !== value) {
+        mockAuditLogs.push({ timestamp: Math.floor(Date.now() / 1000), source: 'Web UI', feature: 'Bubbles', state: value });
+        state.bubble = value;
+      }
     } else if (cmd === 'temp') {
       state.set_temp = value;
     }
@@ -325,6 +353,33 @@ app.post('/api/admin/ota', express.raw({ type: 'application/octet-stream', limit
   console.log(`[Admin API] OTA firmware upload started...`);
   const data = req.body as Buffer;
   console.log(`[Admin API] OTA upload completed. Received ${data ? data.length : 0} bytes.`);
+  res.json({ status: 'ok' });
+});
+
+app.get('/api/admin/audit', (req: Request, res: Response) => {
+  console.log('[Admin API] Fetching mock audit trail events');
+  const cutoff = Math.floor(Date.now() / 1000) - (retentionDays * 24 * 3600);
+  mockAuditLogs = mockAuditLogs.filter(e => e.timestamp >= cutoff);
+  res.json(mockAuditLogs);
+});
+
+app.get('/api/admin/audit/config', (req: Request, res: Response) => {
+  console.log('[Admin API] Fetching audit trail config');
+  res.json({ retentionDays });
+});
+
+app.post('/api/admin/audit/config', (req: Request, res: Response) => {
+  const { retentionDays: days } = req.body;
+  console.log(`[Admin API] Setting audit trail retention to ${days} days`);
+  if (days >= 1 && days <= 7) {
+    retentionDays = days;
+  }
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/admin/audit/clear', (req: Request, res: Response) => {
+  console.log('[Admin API] Clearing mock audit trail events');
+  mockAuditLogs = [];
   res.json({ status: 'ok' });
 });
 

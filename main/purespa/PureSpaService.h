@@ -56,10 +56,10 @@ public:
     void init();
     std::string getStatusJson();
     
-    void setPower(bool on);
-    void setFilter(bool on);
-    void setBubble(bool on);
-    void setHeater(bool on);
+    void setPower(bool on, const char* source = "Web UI");
+    void setFilter(bool on, const char* source = "Web UI");
+    void setBubble(bool on, const char* source = "Web UI");
+    void setHeater(bool on, const char* source = "Web UI");
     void setTargetTemp(int temp);
 
     // Scheduling
