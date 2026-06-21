@@ -1,3 +1,4 @@
+
 # ESP32 PureSpa Controller
 
 <p align="center">
@@ -7,6 +8,7 @@
 This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp8266-intexsbh20) project to the **ESP32** platform.
 
 **The primary goal** is to upgrade standard Intex PureSpa whirlpools with modern **Smart Home capabilities**. By integrating an ESP32, you gain **full remote control** over WiFi and **custom scheduling** features that are missing from the original control panel. This allows you to:
+
 - Heat the water during off-peak hours to save energy.
 - Ensure filtration cycles run automatically even if you are away.
 - Turn on the bubbles from your phone before you step outside.
@@ -14,6 +16,7 @@ This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp
 **⚠️ WARNING: USE AT YOUR OWN RISK. Opening your spa controller and connecting custom electronics voids your warranty and involves mains voltage risks.**
 
 ## Table of Contents
+
 - [Compatibility](#compatibility)
 - [New Features](#new-features-esp32)
 - [Firmware Updates (OTA)](#firmware-updates-ota)
@@ -25,6 +28,7 @@ This project is a port of the [esp8266-intexsbh20](https://github.com/jnsbyr/esp
 ## Compatibility
 
 This project supports the same models as the original ESP8266 version:
+
 - Intex PureSpa SB-H20
 - Intex SimpleSpa SB–B20
 - Intex PureSpa SSP-H-20-1
@@ -35,54 +39,71 @@ This project supports the same models as the original ESP8266 version:
 Unlike the original MQTT-centric firmware, this ESP32 port focuses on a standalone, premium Web UI experience, while maintaining the core logic for communicating with the spa controller.
 
 ### 1. Web User Interface (iOS Premium Theme)
+
 A hosted web server provides a responsive dashboard featuring:
+
 - **Adaptive iOS Styling**: Dark/Light mode integration with smooth animations, high-contrast typography, and glassmorphic card layouts.
 - **Circular Temperature Dial**: An interactive SVG dial allowing you to slide or tap to adjust the target water temperature.
 - **Live State Monitoring**: Watch changes in real-time for Spa temperature, Power, Filter, Heater, and Bubbles.
 
 ![Web UI](assets/purespa_webui.png)
+![Web UI Schedule](assets/purespa_webui_schedule.png)
+
 
 ### 2. Built-in Scheduling
+
 The ESP32 stores a schedule in its non-volatile memory (NVS), allowing automation without an external hub:
+
 - **Recurring Events:** Schedule actions for specific days of the week (e.g., "Every Mon, Wed at 18:00").
 - **One-time Events:** Schedule a specific date and time.
 - **Actions:** Turn Power, Filter, Heater, or Bubbles ON/OFF, and set target Temperature.
 - **Auto-Power On:** If a scheduled event requires a feature (e.g., Heater ON) and the Spa is OFF, it will automatically power ON the Spa first.
 
 ### 3. Advanced Administration Drawer
+
 Access advanced features by clicking the settings gear in the top-right corner:
+
 - **Time Synchronization**: Synchronize the Spa's system clock directly with your phone/browser time.
 - **Live Diagnostics**: Review metrics in real-time, including Free Heap RAM, Uptime, and Wi-Fi signal strength (RSSI).
 - **System Actions**: Proactively trigger software reboots, erase NVS Wi-Fi credentials, clear schedules, or trigger a full factory reset.
 
 ### 4. Activity History (Audit Trail)
+
 Keep track of your spa's activity with a local, non-volatile audit log:
+
 - **Event Logging**: Automatically records state transitions (Power ON/OFF, Filter ON/OFF, Heater ON/OFF, Bubbles ON/OFF) and actions executed by the scheduler.
 - **Wear-leveling Protection**: Serializes logs into a compact binary block stored in NVS, protecting the ESP32 flash memory from excessive write cycles.
 - **Configurable Retention**: Keeps logs for up to 7 days (fully configurable via the administration panel).
 - **Automated Pruning**: Automatically prunes old events once system time is synchronized, ignoring manual temperature adjustments and physical control panel button presses to keep the log clean and focused.
 
 ### 5. Over-The-Air (OTA) Updates
+
 Upload new firmware builds directly from the browser dashboard:
+
 - Stream firmware `.bin` files via raw binary upload (avoiding memory overhead).
 - Visualize real-time progress using an animated progress bar.
 - Automatic verification and reboot.
 
 ### 6. Wi-Fi Access Point & Manager
+
 - **Access Point Mode:** If no known Wi-Fi is found, the device creates an Access Point named `ESP32-PureSpa-Config`.
 - **Captive Portal:** Connect to the AP to configure your home Wi-Fi credentials via a dedicated portal (`config.html`).
 
 ### 7. Local DNS Resolution (mDNS)
+
 - Connect to your spa at **`http://purespa.local/`** instead of typing raw IP addresses.
 
 ### 8. Onboard Status LED Subsystem
+
 The onboard blue LED (GPIO 2) blinks to visually report the controller state:
+
 - **Slow Blink**: Soft AP configuration mode (awaiting Wi-Fi credentials).
 - **Fast Blink**: Attempting to connect to the configured home Wi-Fi.
 - **Solid ON**: Successfully connected to Wi-Fi.
 - **Double-Flash Blink**: Wi-Fi connection error or failure.
 
 ## Firmware Updates (OTA)
+
 For details on compiling and uploading updates, refer to the [OTA Update Documentation](ota_documentation.md).
 
 ## Hardware
@@ -90,11 +111,13 @@ For details on compiling and uploading updates, refer to the [OTA Update Documen
 This project simplifies the original hardware design by leveraging readily available modules.
 
 ### Components Used:
+
 - **ESP32-WROOM-32:** A standard ESP32 development board.
 - **Bi-Directional Logic Level Converter (TTL):** Instead of building a voltage divider with resistors, I used a pre-made module to safely interface the Spa's 5V logic with the ESP32's 3.3V logic.
 - **Capacitor (optional but recommended):** A small electrolytic capacitor (e.g., 100µF or 470µF) between the +5V and GND lines near the ESP32 can help stabilize the power supply if powering directly from the Spa.
 
 ### Power Options
+
 1. **Direct Power (Recommended for clean setup):** Connect the Spa's +5V line to the **VIN / 5V** pin of the ESP32 board. This powers the ESP32 directly from the Spa.
 2. **External USB:** You can also power the ESP32 via its micro-USB/USB-C port using a separate phone charger or power bank if you prefer not to tap the Spa's power line for the heavy load.
 
@@ -131,13 +154,13 @@ graph LR
     GPIO_CLOCK[GPIO Clock]
     GPIO_LATCH[GPIO Latch]
     end
-    
+  
     CAP[Capacitor 100µF]
 
     %% Power Connections (Option 1: Direct Power)
     VCC_5V -- Powering ESP --> VIN
     VCC_5V -- Ref for HV --> HV
-    
+  
     %% Capacitor for stability
     VIN --- CAP
     GND_ESP --- CAP
@@ -146,7 +169,7 @@ graph LR
     GND_SPA --> GND_HV
     GND_ESP --> GND_LV
     GND_SPA -. Common Ground .- GND_ESP
-    
+  
     %% Converter Low Side Power
     VCC_3V3 --> LV
 
@@ -165,6 +188,7 @@ graph LR
 ```
 
 ### Connectors & Plug
+
 To connect to the Intex control panel without cutting wires, you can 3D print the connectors. I successfully used the models from the original project:
 
 - [Intex PureSpa connectors (Thingiverse)](https://www.thingiverse.com/thing:4130911)
@@ -173,7 +197,9 @@ To connect to the Intex control panel without cutting wires, you can 3D print th
 ## Technical Implementation
 
 ### Multicore Architecture
+
 The ESP32's dual-core architecture is utilized to improve stability compared to the ESP8266 version:
+
 - **Core 0 / WiFi:** Handles the network stack, Web Server, and background tasks.
 - **Core 1 / PureSpaIO:** The specific protocol to read/write signals to the Spa controller runs on a dedicated FreeRTOS task pinned to a separate core.
 
@@ -184,35 +210,44 @@ The ESP32's dual-core architecture is utilized to improve stability compared to 
 ## Real-time Status
 
 ### Polling Method
-The Web UI currently uses **HTTP Polling** (fetching status every 2 seconds) to update the dashboard. 
+
+The Web UI currently uses **HTTP Polling** (fetching status every 2 seconds) to update the dashboard.
 
 ### Why not Server-Sent Events (SSE)?
+
 SSE was implemented and tested but ultimately abandoned. The ESP32's HTTP server implementation (esp_http_server) is single-threaded by default. An open SSE connection would lock the server, preventing other requests (like button clicks or API calls) from being processed until the connection timed out.
 
 ### Future: WebSockets
+
 The ideal solution for real-time, bi-directional communication without the blocking issues of SSE or the overhead of polling is **WebSockets**. This is planned for a future update.
 
 ## Future Improvements
 
 ### ESPHome Component
+
 The current codebase is a standalone C++ project. A great future addition would be to wrap the `PureSpaIO` logic into a custom **ESPHome component**. This would allow users to:
+
 - Easily integrate with **Home Assistant** without writing any C++ code.
 - Benefit from ESPHome's native OTA, API, and WiFi management.
 - Define automations directly in YAML.
 
 ### MQTT Support
+
 While the original project was MQTT-centric, this port currently lacks it. Re-implementing MQTT would allow for universal integration with any home automation hub (OpenHAB, Domoticz, etc.).
 
 ### Power Saving (Deep Sleep)
+
 Currently, the ESP32 runs continuously. A future update could implement **Deep Sleep** capabilities to save power when the Spa is idle (Power OFF) for several minutes.
 
 The ESP32 could automatically wake up based on:
-1.  **Scheduled Events:** Using the RTC timer to wake up exactly when a scheduled task needs to execute.
-2.  **External Wake-up:** Potentially waking up on incoming network activity (though this requires Light Sleep rather than Deep Sleep to maintain WiFi association) or periodic checks.
+
+1. **Scheduled Events:** Using the RTC timer to wake up exactly when a scheduled task needs to execute.
+2. **External Wake-up:** Potentially waking up on incoming network activity (though this requires Light Sleep rather than Deep Sleep to maintain WiFi association) or periodic checks.
 
 ## Credits
 
 This project is heavily based on the work of:
+
 - [Jens B. (jnsbyr)](https://github.com/jnsbyr/esp8266-intexsbh20) - Original ESP8266 reverse engineering and firmware.
 - [Geoffroy Hubert (diyscip)](https://github.com/yorffoeg/diyscip) - Initial reverse engineering of the protocol.
 - [Elektroarzt](https://github.com/Elektroarzt) - PCB Designs.
